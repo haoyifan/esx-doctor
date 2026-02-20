@@ -40,6 +40,7 @@ const themePalettes = {
   midnight: palette,
   "classic-light": ["#0071e3", "#34c759", "#ff9f0a", "#5e5ce6", "#ff375f", "#64d2ff", "#30b0c7"],
 };
+const loadSeriesSoftLimit = 10000;
 const themeStorageKey = "esxDoctorTheme";
 const sidebarStorageKey = "esxDoctorSidebarCollapsed";
 const defaultTheme = "midnight";
@@ -1199,10 +1200,21 @@ async function loadSeries() {
     setStatus("Select at least one instance from the selected attribute.");
     return;
   }
+  let requestedCols = cols;
+  if (cols.length > loadSeriesSoftLimit) {
+    const msg = `You selected ${cols.length} instances. By default, esx-doctor loads the first ${loadSeriesSoftLimit} to keep the app responsive.\n\nClick OK to load all ${cols.length} instances.\nClick Cancel to load only the first ${loadSeriesSoftLimit}.`;
+    const loadAll = window.confirm(msg);
+    if (!loadAll) {
+      requestedCols = cols.slice(0, loadSeriesSoftLimit);
+      setStatus(`Loading first ${requestedCols.length}/${cols.length} instances for responsiveness...`);
+    }
+  }
 
-  setStatus("Loading full timestamps...");
+  if (!(cols.length > loadSeriesSoftLimit && requestedCols.length < cols.length)) {
+    setStatus("Loading full timestamps...");
+  }
   const params = new URLSearchParams();
-  cols.forEach((c) => params.append("col", c));
+  requestedCols.forEach((c) => params.append("col", c));
   params.append("maxPoints", "0");
   if (Number.isFinite(state.range.start) && Number.isFinite(state.range.end)) {
     params.append("start", String(state.range.start));
@@ -1218,7 +1230,7 @@ async function loadSeries() {
 
   const nextTimes = data.times || [];
   const nextSeries = (data.series || []).map((s, i) => {
-    const idx = cols[i];
+    const idx = requestedCols[i];
     const item = state.indexMap.get(idx);
     return {
       ...s,
