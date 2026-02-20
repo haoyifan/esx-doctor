@@ -11,10 +11,10 @@ It is designed for fast startup, low memory usage, and interactive time-series t
 
 ## Why esx-doctor
 
-- Minimal dependency footprint: if Go is installed, it runs on Linux, macOS, and Windows with no extra runtime stack.
-- Fast and resource-efficient: Go backend is optimized for large CSV ingestion and interactive querying.
-- Easy local deployment: run directly with `go run .` or build one binary and start it anywhere.
-- Easy to use: focused workflow that does one thing well—investigate esxtop batch metrics quickly.
+- Minimal dependency footprint: if Go is installed, it runs on Linux, macOS, and Windows with no extra runtime stack. 🧩
+- Fast and resource-efficient: Go backend is optimized for large CSV ingestion and interactive querying. ⚡
+- Easy local deployment: run directly with `go run .` or build one binary and start it anywhere. 🚀
+- Easy to use: focused workflow that does one thing well—investigate esxtop batch metrics quickly. 🎯
 
 ## Quick Start
 
