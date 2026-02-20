@@ -158,6 +158,36 @@ input[type="file"] {
   align-items: center;
   gap: 8px;
 }
+.windowbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.window-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.window-tab {
+  border: 1px solid var(--border);
+  background: #101622;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.window-tab.active {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(93, 214, 199, 0.15);
+}
+.window-actions {
+  display: flex;
+  gap: 8px;
+}
 
 .topbar .title { font-size: 18px; font-weight: 600; }
 

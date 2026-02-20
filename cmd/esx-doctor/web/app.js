@@ -5,6 +5,9 @@ const state = {
   attributes: [],
   attributeMap: new Map(),
   reports: [],
+  windows: [],
+  activeWindowId: null,
+  windowSeq: 1,
   selected: new Set(),
   selectedAttribute: null,
   times: [],
@@ -37,6 +40,7 @@ const $filePath = document.getElementById("filePath");
 const $filePicker = document.getElementById("filePicker");
 const $urlInput = document.getElementById("urlInput");
 const $status = document.getElementById("status");
+const $windowTabs = document.getElementById("windowTabs");
 const $chart = document.getElementById("chart");
 const $overlay = document.getElementById("overlay");
 const $tooltip = document.getElementById("tooltip");
@@ -63,6 +67,140 @@ function fmtTime(ms) {
 
 function setStatus(msg) {
   $status.textContent = msg;
+  const w = state.windows.find((x) => x.id === state.activeWindowId);
+  if (w) w.status = msg;
+}
+
+function cloneSeries(series) {
+  return (series || []).map((s) => ({
+    ...s,
+    values: Array.isArray(s.values) ? [...s.values] : [],
+  }));
+}
+
+function makeWindowFromCurrent(name) {
+  return {
+    id: `w-${state.windowSeq++}`,
+    name,
+    selected: new Set(state.selected),
+    selectedAttribute: state.selectedAttribute,
+    times: [...state.times],
+    series: cloneSeries(state.series),
+    view: { ...state.view },
+    zoomStack: [...state.zoomStack],
+    panSpan: state.panSpan,
+    search: $search.value || "",
+    instanceSearch: $instanceSearch.value || "",
+    status: $status.textContent || "Idle",
+  };
+}
+
+function saveCurrentWindowState() {
+  const w = state.windows.find((x) => x.id === state.activeWindowId);
+  if (!w) return;
+  w.selected = new Set(state.selected);
+  w.selectedAttribute = state.selectedAttribute;
+  w.times = [...state.times];
+  w.series = cloneSeries(state.series);
+  w.view = { ...state.view };
+  w.zoomStack = [...state.zoomStack];
+  w.panSpan = state.panSpan;
+  w.search = $search.value || "";
+  w.instanceSearch = $instanceSearch.value || "";
+  w.status = $status.textContent || "Idle";
+}
+
+function loadWindowState(w) {
+  if (!w) return;
+  state.selected = new Set(w.selected);
+  state.selectedAttribute = w.selectedAttribute;
+  state.times = [...w.times];
+  state.series = cloneSeries(w.series);
+  state.view = { ...w.view };
+  state.zoomStack = [...w.zoomStack];
+  state.panSpan = w.panSpan;
+  $search.value = w.search || "";
+  $instanceSearch.value = w.instanceSearch || "";
+  $status.textContent = w.status || "Idle";
+}
+
+function renderWindowTabs() {
+  $windowTabs.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  state.windows.forEach((w) => {
+    const btn = document.createElement("button");
+    btn.className = "window-tab";
+    if (w.id === state.activeWindowId) btn.classList.add("active");
+    btn.textContent = w.name;
+    btn.addEventListener("click", () => switchWindow(w.id));
+    frag.appendChild(btn);
+  });
+  $windowTabs.appendChild(frag);
+}
+
+function switchWindow(id) {
+  if (id === state.activeWindowId) return;
+  saveCurrentWindowState();
+  const w = state.windows.find((x) => x.id === id);
+  if (!w) return;
+  state.activeWindowId = id;
+  loadWindowState(w);
+  renderWindowTabs();
+  renderAttributes();
+  renderInstances();
+  drawChart();
+}
+
+function createWindow(cloneCurrent = true) {
+  if (cloneCurrent) saveCurrentWindowState();
+  if (cloneCurrent && state.windows.length > 0) {
+    const base = state.windows.find((x) => x.id === state.activeWindowId);
+    if (base) {
+      const w = {
+        ...base,
+        id: `w-${state.windowSeq++}`,
+        name: `Window ${state.windowSeq - 1}`,
+        selected: new Set(base.selected),
+        times: [...base.times],
+        series: cloneSeries(base.series),
+        view: { ...base.view },
+        zoomStack: [...base.zoomStack],
+      };
+      state.windows.push(w);
+      state.activeWindowId = w.id;
+      loadWindowState(w);
+      renderWindowTabs();
+      renderAttributes();
+      renderInstances();
+      drawChart();
+      return;
+    }
+  }
+  const w = makeWindowFromCurrent(`Window ${state.windowSeq}`);
+  state.windows.push(w);
+  state.activeWindowId = w.id;
+  loadWindowState(w);
+  renderWindowTabs();
+  renderAttributes();
+  renderInstances();
+  drawChart();
+}
+
+function closeActiveWindow() {
+  if (state.windows.length <= 1) {
+    setStatus("At least one window is required.");
+    return;
+  }
+  const idx = state.windows.findIndex((x) => x.id === state.activeWindowId);
+  if (idx < 0) return;
+  state.windows.splice(idx, 1);
+  const next = state.windows[Math.max(0, idx - 1)];
+  state.activeWindowId = next.id;
+  loadWindowState(next);
+  renderWindowTabs();
+  renderAttributes();
+  renderInstances();
+  drawChart();
 }
 
 function parsePDHColumn(raw, idx) {
@@ -216,6 +354,19 @@ function compactInstanceName(item) {
   return instance;
 }
 
+function getVisibleInstances(attr) {
+  if (!attr) return [];
+  const filter = ($instanceSearch.value || "").trim().toLowerCase();
+  return [...attr.items]
+    .filter((a) => {
+      if (filter === "") return true;
+      const raw = (a.instance || "").toLowerCase();
+      const compact = compactInstanceName(a).toLowerCase();
+      return raw.includes(filter) || compact.includes(filter);
+    })
+    .sort((a, b) => a.instance.localeCompare(b.instance));
+}
+
 function renderAttributes() {
   const visible = getVisibleAttributes();
   $attributes.innerHTML = "";
@@ -258,16 +409,7 @@ function renderInstances() {
   if (!attr) return;
 
   enforceSingleAttributeSelection();
-
-  const filter = ($instanceSearch.value || "").trim().toLowerCase();
-  const sorted = [...attr.items]
-    .filter((a) => {
-      if (filter === "") return true;
-      const raw = (a.instance || "").toLowerCase();
-      const compact = compactInstanceName(a).toLowerCase();
-      return raw.includes(filter) || compact.includes(filter);
-    })
-    .sort((a, b) => a.instance.localeCompare(b.instance));
+  const sorted = getVisibleInstances(attr);
   const frag = document.createDocumentFragment();
 
   sorted.forEach((item) => {
@@ -335,6 +477,15 @@ function applyMeta(data) {
     state.selectedAttribute = initialAttr.key;
     initialAttr.items.slice(0, 2).forEach((item) => state.selected.add(item.idx));
   }
+
+  state.windows = [];
+  state.activeWindowId = null;
+  state.windowSeq = 1;
+  const firstWindow = makeWindowFromCurrent("Window 1");
+  state.windows.push(firstWindow);
+  state.activeWindowId = firstWindow.id;
+  loadWindowState(firstWindow);
+  renderWindowTabs();
 
   renderReports();
   renderAttributes();
@@ -761,6 +912,7 @@ function zoomOut() {
 }
 
 async function loadSeries() {
+  const targetWindowId = state.activeWindowId;
   const attr = currentAttribute();
   if (!attr) {
     setStatus("No attribute selected.");
@@ -790,8 +942,8 @@ async function loadSeries() {
     return;
   }
 
-  state.times = data.times || [];
-  state.series = (data.series || []).map((s, i) => {
+  const nextTimes = data.times || [];
+  const nextSeries = (data.series || []).map((s, i) => {
     const idx = cols[i];
     const item = state.indexMap.get(idx);
     return {
@@ -799,6 +951,17 @@ async function loadSeries() {
       name: compactInstanceName(item) || s.name,
     };
   });
+  const target = state.windows.find((w) => w.id === targetWindowId);
+  if (target) {
+    target.times = [...nextTimes];
+    target.series = cloneSeries(nextSeries);
+    target.view = { start: null, end: null };
+    target.zoomStack = [];
+    target.panSpan = null;
+  }
+  if (state.activeWindowId !== targetWindowId) return;
+  state.times = nextTimes;
+  state.series = nextSeries;
   state.view.start = null;
   state.view.end = null;
   state.zoomStack = [];
@@ -806,6 +969,7 @@ async function loadSeries() {
 
   drawChart();
   setStatus(`Loaded ${state.times.length.toLocaleString()} timestamps, ${state.series.length} series`);
+  saveCurrentWindowState();
 }
 
 $search.addEventListener("input", () => {
@@ -816,6 +980,7 @@ $search.addEventListener("input", () => {
   }
   renderAttributes();
   renderInstances();
+  saveCurrentWindowState();
 });
 
 document.getElementById("selectAllAttrs").addEventListener("click", () => {
@@ -839,8 +1004,9 @@ document.getElementById("clearAll").addEventListener("click", () => {
 document.getElementById("selectAllInstances").addEventListener("click", () => {
   const attr = currentAttribute();
   if (!attr) return;
-  state.selected.clear();
-  attr.items.forEach((item) => state.selected.add(item.idx));
+  const visible = getVisibleInstances(attr);
+  if (visible.length === 0) return;
+  visible.forEach((item) => state.selected.add(item.idx));
   renderInstances();
 });
 
@@ -850,13 +1016,18 @@ document.getElementById("clearInstances").addEventListener("click", () => {
   attr.items.forEach((item) => state.selected.delete(item.idx));
   renderInstances();
 });
-$instanceSearch.addEventListener("input", () => renderInstances());
+$instanceSearch.addEventListener("input", () => {
+  renderInstances();
+  saveCurrentWindowState();
+});
 
 document.getElementById("openFile").addEventListener("click", () => openPickedFile());
 document.getElementById("openUrl").addEventListener("click", () => openFromURL());
 $urlInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") openFromURL();
 });
+document.getElementById("newWindow").addEventListener("click", () => createWindow(true));
+document.getElementById("closeWindow").addEventListener("click", () => closeActiveWindow());
 document.getElementById("openManual").addEventListener("click", () => {
   window.open("/manual", "_blank", "noopener,noreferrer");
 });

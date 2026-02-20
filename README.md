@@ -112,6 +112,7 @@ Direct URL:
 7. Double-click chart or click `Zoom Out` to zoom out.
 8. Use bottom slider to pan current zoom window.
 9. Click `Screenshot` to export the current view.
+10. Use `New Window` to create parallel analysis windows (for example `% Used` and `% Ready`) and switch via window tabs.
 
 ## Features
 
@@ -122,6 +123,7 @@ Direct URL:
 - Zoom + pan slider navigation
 - Screenshot export with graph title and visible time window
 - Runtime CSV switching without restart
+- Multi-window workspace with independent selections and zoom states
 
 ## Troubleshooting
 
