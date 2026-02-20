@@ -16,7 +16,10 @@
       </div>
 
       <div class="section">
-        <div class="label">Dataset</div>
+        <div class="label-row">
+          <div class="label">Dataset</div>
+          <span class="help-tip" title="Choose a local CSV file or a CSV URL, then open it.">?</span>
+        </div>
         <div id="filePath" class="mono">Loading...</div>
         <input id="filePicker" type="file" accept=".csv,text/csv" />
         <div class="controls">
@@ -30,19 +33,28 @@
       </div>
 
       <div class="section">
-        <div class="label">Reports</div>
+        <div class="label-row">
+          <div class="label">Reports</div>
+          <span class="help-tip" title="Report buttons narrow the attribute list to a functional group.">?</span>
+        </div>
         <div id="reports" class="row"></div>
       </div>
       
       <div class="section">
         <div class="selector-grid">
           <div>
-            <div class="sub-label">Attributes</div>
+            <div class="label-row">
+              <div class="sub-label">Attributes</div>
+              <span class="help-tip" title="Pick one metric to graph (for example Vcpu: % Used).">?</span>
+            </div>
             <input id="search" type="text" placeholder="Search attributes..." />
             <div id="attributes" class="listbox"></div>
           </div>
           <div>
-            <div class="sub-label">Instances</div>
+            <div class="label-row">
+              <div class="sub-label">Instances</div>
+              <span class="help-tip" title="Select one or more instances within the selected attribute.">?</span>
+            </div>
             <input id="instanceSearch" type="text" placeholder="Filter instances..." />
             <div class="controls tight">
               <button id="selectAllInstances" class="btn ghost">All Instances</button>
@@ -57,24 +69,32 @@
         <button id="loadSeries" class="btn primary">Load</button>
       </div>
 
-      <div class="section">
-        <div class="label">Appearance</div>
+      <details class="section optional-panel">
+        <summary class="optional-toggle">Appearance</summary>
+        <div class="label-row">
+          <div class="sub-label">Theme</div>
+          <span class="help-tip" title="Choose the visual color theme.">?</span>
+        </div>
         <select id="themeSelect" aria-label="Theme">
           <option value="midnight">Midnight Classic</option>
           <option value="classic-light">Classic Light</option>
         </select>
-      </div>
+      </details>
 
-      <div class="section">
-        <div class="label">Advanced Filter</div>
+      <details class="section optional-panel">
+        <summary class="optional-toggle">Advanced Filter</summary>
+        <div class="label-row">
+          <div class="sub-label">Noise Filter</div>
+          <span class="help-tip" title="Hide low-signal instances by value range and active duration percentage.">?</span>
+        </div>
         <input id="filterMin" type="text" placeholder="Min value (optional)" />
         <input id="filterMax" type="text" placeholder="Max value (optional)" />
-        <input id="filterActivePct" type="text" placeholder="Min active % (0-100)" />
+        <input id="filterActivePct" type="text" placeholder="Min active % (optional, 0-100)" />
         <div class="controls">
           <button id="applyFilter" class="btn ghost">Apply Filter</button>
           <button id="resetFilter" class="btn ghost">Reset Filter</button>
         </div>
-      </div>
+      </details>
     </aside>
     <div id="splitter" class="splitter" title="Drag to resize panel"></div>
 

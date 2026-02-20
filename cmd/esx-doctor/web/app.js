@@ -24,7 +24,7 @@ const state = {
   filter: {
     min: null,
     max: null,
-    minActivePct: 0,
+    minActivePct: null,
   },
 };
 
@@ -143,7 +143,7 @@ function cloneFilter(filter) {
   return {
     min: Number.isFinite(f.min) ? f.min : null,
     max: Number.isFinite(f.max) ? f.max : null,
-    minActivePct: Number.isFinite(f.minActivePct) ? f.minActivePct : 0,
+    minActivePct: Number.isFinite(f.minActivePct) ? f.minActivePct : null,
   };
 }
 
@@ -365,7 +365,7 @@ function resetDataState() {
 function syncFilterInputs() {
   if ($filterMin) $filterMin.value = Number.isFinite(state.filter.min) ? String(state.filter.min) : "";
   if ($filterMax) $filterMax.value = Number.isFinite(state.filter.max) ? String(state.filter.max) : "";
-  if ($filterActivePct) $filterActivePct.value = String(Number.isFinite(state.filter.minActivePct) ? state.filter.minActivePct : 0);
+  if ($filterActivePct) $filterActivePct.value = Number.isFinite(state.filter.minActivePct) ? String(state.filter.minActivePct) : "";
 }
 
 function parseOptionalNumber(value) {
@@ -381,8 +381,9 @@ function applySeriesFilter(baseSeries, filter) {
   const f = cloneFilter(filter);
   const useMin = Number.isFinite(f.min);
   const useMax = Number.isFinite(f.max);
-  const activeThreshold = Math.max(0, Math.min(100, f.minActivePct || 0));
-  if (!useMin && !useMax && activeThreshold <= 0) return cloneSeries(baseSeries);
+  const useActive = Number.isFinite(f.minActivePct);
+  const activeThreshold = useActive ? Math.max(0, Math.min(100, f.minActivePct)) : 0;
+  if (!useMin && !useMax && !useActive) return cloneSeries(baseSeries);
 
   return baseSeries.filter((s) => {
     const total = Array.isArray(s.values) ? s.values.length : 0;
@@ -396,7 +397,7 @@ function applySeriesFilter(baseSeries, filter) {
       active += 1;
     }
     const pct = (active / total) * 100;
-    return pct >= activeThreshold;
+    return !useActive || pct >= activeThreshold;
   });
 }
 
@@ -408,8 +409,8 @@ function refreshFilteredSeries() {
 function applyAdvancedFilterFromInputs() {
   const min = parseOptionalNumber($filterMin ? $filterMin.value : "");
   const max = parseOptionalNumber($filterMax ? $filterMax.value : "");
-  const minActiveRaw = parseOptionalNumber($filterActivePct ? $filterActivePct.value : "0");
-  const minActivePct = Number.isFinite(minActiveRaw) ? Math.max(0, Math.min(100, minActiveRaw)) : 0;
+  const minActiveRaw = parseOptionalNumber($filterActivePct ? $filterActivePct.value : "");
+  const minActivePct = Number.isFinite(minActiveRaw) ? Math.max(0, Math.min(100, minActiveRaw)) : null;
 
   if (Number.isFinite(min) && Number.isFinite(max) && min > max) {
     setStatus("Invalid filter: Min value must be <= Max value.");
@@ -426,7 +427,7 @@ function applyAdvancedFilterFromInputs() {
 }
 
 function resetAdvancedFilter() {
-  state.filter = { min: null, max: null, minActivePct: 0 };
+  state.filter = { min: null, max: null, minActivePct: null };
   syncFilterInputs();
   refreshFilteredSeries();
   saveCurrentWindowState();
@@ -656,7 +657,7 @@ function applyMeta(data) {
 
   buildAttributeModel();
   resetDataState();
-  state.filter = { min: null, max: null, minActivePct: 0 };
+  state.filter = { min: null, max: null, minActivePct: null };
 
   $filePath.textContent = state.file;
 

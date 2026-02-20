@@ -154,6 +154,52 @@ body {
   color: var(--muted);
   margin-bottom: 8px;
 }
+.label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.help-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: help;
+}
+.optional-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 10px 10px 12px;
+}
+.optional-panel[open] {
+  background: var(--panel-2);
+}
+.optional-toggle {
+  list-style: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  user-select: none;
+}
+.optional-toggle::-webkit-details-marker {
+  display: none;
+}
+.optional-toggle::before {
+  content: "▸ ";
+  color: var(--muted);
+}
+.optional-panel[open] .optional-toggle::before {
+  content: "▾ ";
+}
 
 .mono { font-family: var(--font-mono); font-size: 12px; }
 
