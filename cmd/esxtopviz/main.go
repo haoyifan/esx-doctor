@@ -416,7 +416,7 @@ func main() {
 			if ms, err := strconv.ParseInt(val, 10, 64); err == nil {
 				return time.UnixMilli(ms).UTC()
 			}
-			t, _ := parseTimeValue(val)
+			t, _, _ := parseTimeValue(val)
 			return t
 		}
 
