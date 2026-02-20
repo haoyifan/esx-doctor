@@ -349,14 +349,13 @@ function buildAttributeModel() {
 
 function buildReportsModel() {
   const defs = [
+    { key: "cpu", label: "CPU", patterns: [/cpu/i, /vcpu/i, /group cpu/i, /% used/i, /% ready/i] },
+    { key: "memory", label: "Memory", patterns: [/memory/i, /swap/i, /memctl/i, /compressed/i, /group memory/i] },
+    { key: "numa", label: "NUMA", patterns: [/numa/i] },
     { key: "power", label: "Power", patterns: [/power/i, /watts/i, /pstate/i, /cstate/i] },
-    { key: "cpu", label: "CPU", patterns: [/cpu/i, /vcpu/i, /numa node.*processor/i, /% used/i, /% ready/i] },
-    { key: "memory", label: "Memory", patterns: [/memory/i, /swap/i, /memctl/i, /compressed/i] },
     { key: "network", label: "Network", patterns: [/\bnet/i, /nic/i, /network/i] },
     { key: "storage", label: "Storage", patterns: [/disk/i, /datastore/i, /storage/i, /latency/i, /iops/i] },
-    { key: "numa", label: "NUMA", patterns: [/numa/i] },
     { key: "vsan", label: "vSAN", patterns: [/vsan/i] },
-    { key: "groups", label: "Groups", patterns: [/group cpu/i, /group memory/i] },
   ];
 
   const reportMap = new Map(defs.map((d) => [d.key, { key: d.key, label: d.label, attrs: [] }]));
@@ -384,9 +383,7 @@ function buildReportsModel() {
   const all = { key: "all", label: "All", attrs: [...state.attributes] };
   state.reports = [all, ...reports];
 
-  if (!state.activeReport || !state.reports.some((r) => r.key === state.activeReport)) {
-    state.activeReport = state.reports.length > 0 ? state.reports[0].key : null;
-  }
+  if (!state.activeReport || !state.reports.some((r) => r.key === state.activeReport)) state.activeReport = "all";
 }
 
 function renderReports() {
@@ -560,7 +557,7 @@ function applyMeta(data) {
   const initialAttr = state.attributes.find((a) => /Cpu Load.*1 Minute Avg/i.test(a.label)) || state.attributes[0];
   if (initialAttr) {
     state.selectedAttribute = initialAttr.key;
-    state.activeReport = initialAttr.reportKey || state.activeReport;
+    state.activeReport = "all";
     initialAttr.items.slice(0, 2).forEach((item) => state.selected.add(item.idx));
   }
 
