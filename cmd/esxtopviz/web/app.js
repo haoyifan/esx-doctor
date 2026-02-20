@@ -31,7 +31,7 @@ const $attributes = document.getElementById("attributes");
 const $instances = document.getElementById("instances");
 const $filePath = document.getElementById("filePath");
 const $range = document.getElementById("range");
-const $fileInput = document.getElementById("fileInput");
+const $filePicker = document.getElementById("filePicker");
 const $status = document.getElementById("status");
 const $chart = document.getElementById("chart");
 const $overlay = document.getElementById("overlay");
@@ -247,7 +247,6 @@ function applyMeta(data) {
   resetDataState();
 
   $filePath.textContent = state.file;
-  $fileInput.value = state.file;
   if (state.range.start && state.range.end) {
     $range.textContent = `${fmtTime(state.range.start)} to ${fmtTime(state.range.end)} (${state.rows.toLocaleString()} rows)`;
   } else {
@@ -270,18 +269,20 @@ async function loadMeta() {
   applyMeta(data);
 }
 
-async function openFile(path) {
-  const trimmed = (path || "").trim();
-  if (!trimmed) {
-    setStatus("Enter a CSV path first.");
+async function openPickedFile() {
+  const file = $filePicker.files && $filePicker.files[0];
+  if (!file) {
+    setStatus("Select a CSV file first.");
     return;
   }
 
-  setStatus("Opening CSV...");
-  const res = await fetch("/api/open", {
+  setStatus(`Uploading ${file.name}...`);
+  const form = new FormData();
+  form.append("file", file);
+
+  const res = await fetch("/api/upload", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ path: trimmed }),
+    body: form,
   });
   const data = await res.json();
   if (!res.ok || data.error) {
@@ -623,10 +624,7 @@ document.getElementById("clearInstances").addEventListener("click", () => {
   renderInstances();
 });
 
-document.getElementById("openFile").addEventListener("click", () => openFile($fileInput.value));
-$fileInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") openFile($fileInput.value);
-});
+document.getElementById("openFile").addEventListener("click", () => openPickedFile());
 
 document.getElementById("loadSeries").addEventListener("click", () => loadSeries());
 document.getElementById("zoomOut").addEventListener("click", () => zoomOut());

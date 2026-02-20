@@ -33,6 +33,8 @@ type IndexEntry struct {
 
 type DataFile struct {
 	Path            string
+	Label           string
+	OwnedTemp       bool
 	Columns         []string
 	Index           []IndexEntry
 	Rows            int64
@@ -125,6 +127,7 @@ func buildIndex(path string) (*DataFile, error) {
 
 	df := &DataFile{
 		Path:            path,
+		Label:           path,
 		Columns:         header,
 		DataStartOffset: offset,
 		Index:           make([]IndexEntry, 0, 1024),
@@ -398,7 +401,7 @@ func main() {
 			"rows":    current.Rows,
 			"start":   current.StartTime.UnixMilli(),
 			"end":     current.EndTime.UnixMilli(),
-			"file":    current.Path,
+			"file":    current.Label,
 		}
 		writeJSON(w, http.StatusOK, payload)
 	})
@@ -435,9 +438,64 @@ func main() {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("index build failed: %v", err)})
 			return
 		}
+		newDF.Label = abs
 		state.Replace(newDF)
 		writeJSON(w, http.StatusOK, map[string]any{
-			"file":  newDF.Path,
+			"file":  newDF.Label,
+			"rows":  newDF.Rows,
+			"start": newDF.StartTime.UnixMilli(),
+			"end":   newDF.EndTime.UnixMilli(),
+		})
+	})
+
+	mux.HandleFunc("/api/upload", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "use POST"})
+			return
+		}
+
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "file is required"})
+			return
+		}
+		defer file.Close()
+
+		tmp, err := os.CreateTemp("", "esxtopviz-*.csv")
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create temp file"})
+			return
+		}
+		tmpPath := tmp.Name()
+		if _, err := io.Copy(tmp, file); err != nil {
+			_ = tmp.Close()
+			_ = os.Remove(tmpPath)
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to save uploaded file"})
+			return
+		}
+		if err := tmp.Close(); err != nil {
+			_ = os.Remove(tmpPath)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to finalize uploaded file"})
+			return
+		}
+
+		newDF, err := buildIndex(tmpPath)
+		if err != nil {
+			_ = os.Remove(tmpPath)
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("index build failed: %v", err)})
+			return
+		}
+		newDF.OwnedTemp = true
+		if strings.TrimSpace(header.Filename) != "" {
+			newDF.Label = header.Filename
+		} else {
+			newDF.Label = filepath.Base(tmpPath)
+		}
+
+		state.Replace(newDF)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"file":  newDF.Label,
 			"rows":  newDF.Rows,
 			"start": newDF.StartTime.UnixMilli(),
 			"end":   newDF.EndTime.UnixMilli(),

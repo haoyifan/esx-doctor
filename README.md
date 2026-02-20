@@ -18,7 +18,7 @@ Open `http://localhost:8080` in your browser.
 ## Usage
 
 - Select counters on the left, click **Load**.
-- You can load a different CSV at runtime from the **Dataset** path field and **Open CSV**.
+- You can load a different CSV at runtime from the **Dataset** file picker and **Open Selected CSV**.
 - Drag on the chart to zoom into a time range.
 - Use **Zoom Out** or **Reset Zoom** to navigate back.
 - Hover to inspect values.
