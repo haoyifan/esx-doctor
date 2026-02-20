@@ -1,12 +1,17 @@
 const state = {
   columns: [],
+  parsedColumns: [],
+  attributes: [],
+  attributeMap: new Map(),
   selected: new Set(),
+  selectedAttribute: null,
   times: [],
   series: [],
   range: { start: null, end: null },
   view: { start: null, end: null },
   file: "",
   rows: 0,
+  yUnit: "value",
 };
 
 const palette = [
@@ -19,8 +24,9 @@ const palette = [
   "#e0af68",
 ];
 
-const $columns = document.getElementById("columns");
 const $search = document.getElementById("search");
+const $attributes = document.getElementById("attributes");
+const $instances = document.getElementById("instances");
 const $filePath = document.getElementById("filePath");
 const $range = document.getElementById("range");
 const $status = document.getElementById("status");
@@ -36,94 +42,210 @@ function fmtTime(ms) {
   return d.toISOString().replace("T", " ").replace("Z", " UTC");
 }
 
-function parseGroup(col) {
-  if (col.startsWith("\\\\")) {
-    const parts = col.split("\\");
-    if (parts.length >= 5) return parts[3];
-  }
-  return "Other";
-}
-
-function renderColumns(filter = "") {
-  $columns.innerHTML = "";
-  const lower = filter.toLowerCase();
-  const fragment = document.createDocumentFragment();
-
-  state.columns.forEach((col, idx) => {
-    if (filter && !col.toLowerCase().includes(lower)) return;
-    const label = document.createElement("label");
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = state.selected.has(idx);
-    checkbox.addEventListener("change", () => {
-      if (checkbox.checked) state.selected.add(idx);
-      else state.selected.delete(idx);
-    });
-    const name = document.createElement("div");
-    name.textContent = col;
-    const group = document.createElement("span");
-    group.textContent = parseGroup(col);
-    label.appendChild(checkbox);
-    label.appendChild(name);
-    label.appendChild(group);
-    fragment.appendChild(label);
-  });
-
-  $columns.appendChild(fragment);
-}
-
-function selectByReport(type) {
-  state.selected.clear();
-  const patterns = {
-    cpu: [/\\Physical Cpu/i, /Cpu Load/i, /% Processor Time/i, /% Util Time/i],
-    memory: [/\\Memory\\/i, /Memctl/i, /Swap/i],
-    io: [/\\Disk/i, /IOPS/i, /Latency/i],
-    network: [/\\Net/i, /\bNIC\b/i, /Network/i],
-  };
-  const pats = patterns[type] || [];
-  state.columns.forEach((col, idx) => {
-    if (pats.some((p) => p.test(col))) state.selected.add(idx);
-  });
-  renderColumns($search.value);
-}
-
 function setStatus(msg) {
   $status.textContent = msg;
+}
+
+function parsePDHColumn(raw, idx) {
+  const fallback = {
+    idx,
+    raw,
+    object: "Other",
+    instance: "Global",
+    counter: raw,
+    attributeKey: `Other|${raw}`,
+    attributeLabel: raw,
+    unit: "value",
+  };
+
+  if (!raw || !raw.startsWith("\\\\")) return fallback;
+  const parts = raw.split("\\");
+  if (parts.length < 5) return fallback;
+
+  const objectPart = parts[3] || "Other";
+  const counter = parts.slice(4).join("\\") || raw;
+  const objectBase = objectPart.split("(")[0] || objectPart;
+  const instanceMatch = objectPart.match(/\((.*)\)/);
+  const instance = instanceMatch ? instanceMatch[1] : "Global";
+
+  let unit = "value";
+  if (/^%/.test(counter) || /percent/i.test(counter)) unit = "%";
+  else if (/MBytes/i.test(counter)) unit = "MBytes";
+  else if (/KBytes/i.test(counter)) unit = "KBytes";
+  else if (/Watts/i.test(counter)) unit = "Watts";
+  else if (/MHz/i.test(counter)) unit = "MHz";
+  else if (/\/sec/i.test(counter)) unit = "/sec";
+  else if (/Latency|ms/i.test(counter)) unit = "ms";
+
+  const attributeKey = `${objectBase}|${counter}`;
+  const attributeLabel = `${objectBase}: ${counter}`;
+
+  return {
+    idx,
+    raw,
+    object: objectBase,
+    instance,
+    counter,
+    attributeKey,
+    attributeLabel,
+    unit,
+  };
+}
+
+function buildAttributeModel() {
+  state.attributeMap = new Map();
+  state.parsedColumns.forEach((item) => {
+    const entry = state.attributeMap.get(item.attributeKey) || {
+      key: item.attributeKey,
+      label: item.attributeLabel,
+      unit: item.unit,
+      items: [],
+    };
+    entry.items.push(item);
+    state.attributeMap.set(item.attributeKey, entry);
+  });
+
+  state.attributes = Array.from(state.attributeMap.values()).sort((a, b) => {
+    return a.label.localeCompare(b.label);
+  });
+
+  if (!state.selectedAttribute && state.attributes.length > 0) {
+    state.selectedAttribute = state.attributes[0].key;
+  }
+}
+
+function getVisibleAttributes() {
+  const filter = ($search.value || "").trim().toLowerCase();
+  if (!filter) return state.attributes;
+  return state.attributes.filter((a) => a.label.toLowerCase().includes(filter));
+}
+
+function renderAttributes() {
+  const visible = getVisibleAttributes();
+  const frag = document.createDocumentFragment();
+  $attributes.innerHTML = "";
+
+  visible.forEach((attr) => {
+    const label = document.createElement("label");
+    if (state.selectedAttribute === attr.key) label.classList.add("active");
+
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "attribute";
+    radio.checked = state.selectedAttribute === attr.key;
+    radio.addEventListener("change", () => {
+      state.selectedAttribute = attr.key;
+      renderAttributes();
+      renderInstances();
+    });
+
+    const name = document.createElement("div");
+    name.textContent = attr.label;
+
+    const count = document.createElement("span");
+    count.textContent = `${attr.items.length} instances`;
+
+    label.appendChild(radio);
+    label.appendChild(name);
+    label.appendChild(count);
+    frag.appendChild(label);
+  });
+
+  $attributes.appendChild(frag);
+}
+
+function renderInstances() {
+  const attr = state.attributeMap.get(state.selectedAttribute);
+  $instances.innerHTML = "";
+  if (!attr) return;
+
+  const sorted = [...attr.items].sort((a, b) => a.instance.localeCompare(b.instance));
+  const frag = document.createDocumentFragment();
+  sorted.forEach((item) => {
+    const label = document.createElement("label");
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = state.selected.has(item.idx);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) state.selected.add(item.idx);
+      else state.selected.delete(item.idx);
+    });
+
+    const name = document.createElement("div");
+    name.textContent = item.instance;
+
+    const idx = document.createElement("span");
+    idx.textContent = `#${item.idx}`;
+
+    label.appendChild(checkbox);
+    label.appendChild(name);
+    label.appendChild(idx);
+    frag.appendChild(label);
+  });
+
+  $instances.appendChild(frag);
+}
+
+function selectReport(type) {
+  const patterns = {
+    cpu: [/Physical Cpu/i, /Cpu Load/i, /Vcpu:/i, /% Used/i, /% Processor Time/i, /% Util Time/i],
+    memory: [/Memory:/i, /Memctl/i, /Swap/i],
+    io: [/Disk/i, /Storage/i, /IOPS/i, /Latency/i],
+    network: [/Net/i, /NIC/i, /Network/i],
+  };
+
+  const pat = patterns[type] || [];
+  const first = state.attributes.find((a) => pat.some((p) => p.test(a.label)));
+  if (first) {
+    state.selectedAttribute = first.key;
+    renderAttributes();
+    renderInstances();
+  }
 }
 
 async function loadMeta() {
   const res = await fetch("/api/meta");
   const data = await res.json();
+
   state.columns = data.columns || [];
   state.file = data.file || "";
   state.rows = data.rows || 0;
   state.range.start = data.start || null;
   state.range.end = data.end || null;
+  state.parsedColumns = state.columns
+    .map((col, idx) => parsePDHColumn(col, idx))
+    .filter((item) => item.idx > 0);
+
+  buildAttributeModel();
+  renderAttributes();
+  renderInstances();
 
   $filePath.textContent = state.file;
   if (state.range.start && state.range.end) {
     $range.textContent = `${fmtTime(state.range.start)} to ${fmtTime(state.range.end)} (${state.rows.toLocaleString()} rows)`;
   }
 
-  // Default selection: a small set of useful counters
-  state.columns.forEach((col, idx) => {
-    if (/Cpu Load \(1 Minute Avg\)/i.test(col)) state.selected.add(idx);
-    if (/Physical Cpu\(_Total\)\\% Processor Time/i.test(col)) state.selected.add(idx);
-    if (/Memory\\Free MBytes/i.test(col)) state.selected.add(idx);
-  });
-
-  renderColumns();
+  // Initial selection for quick first render.
+  const initialAttr = state.attributes.find((a) => /Cpu Load.*1 Minute Avg/i.test(a.label)) || state.attributes[0];
+  if (initialAttr) {
+    state.selectedAttribute = initialAttr.key;
+    initialAttr.items.slice(0, 2).forEach((item) => state.selected.add(item.idx));
+    renderAttributes();
+    renderInstances();
+  }
 }
 
 function resizeCanvas() {
   const rect = $chart.getBoundingClientRect();
   const ratio = window.devicePixelRatio || 1;
-  $chart.width = rect.width * ratio;
-  $chart.height = rect.height * ratio;
+
+  $chart.width = Math.max(1, Math.floor(rect.width * ratio));
+  $chart.height = Math.max(1, Math.floor(rect.height * ratio));
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
 
-  $overlay.width = rect.width * ratio;
-  $overlay.height = rect.height * ratio;
+  $overlay.width = Math.max(1, Math.floor(rect.width * ratio));
+  $overlay.height = Math.max(1, Math.floor(rect.height * ratio));
   octx.setTransform(ratio, 0, 0, ratio, 0, 0);
 }
 
@@ -137,6 +259,7 @@ function computeDomain() {
 function computeYRange(domain) {
   let min = Infinity;
   let max = -Infinity;
+
   state.series.forEach((s) => {
     s.values.forEach((v, i) => {
       const t = state.times[i];
@@ -146,40 +269,55 @@ function computeYRange(domain) {
       if (v > max) max = v;
     });
   });
+
   if (!Number.isFinite(min) || !Number.isFinite(max)) {
     min = 0;
     max = 1;
   }
   if (min === max) {
-    max += 1;
     min -= 1;
+    max += 1;
   }
   return { min, max };
 }
 
+function resolveYUnit() {
+  const attr = state.attributeMap.get(state.selectedAttribute);
+  if (!attr) return "value";
+  return attr.unit || "value";
+}
+
 function drawChart() {
   resizeCanvas();
-  ctx.clearRect(0, 0, $chart.width, $chart.height);
+  const rect = $chart.getBoundingClientRect();
+  ctx.clearRect(0, 0, rect.width, rect.height);
 
-  if (state.times.length === 0) {
+  if (state.times.length === 0 || state.series.length === 0) {
     ctx.fillStyle = "#9aa2b2";
     ctx.font = "14px var(--font-sans)";
-    ctx.fillText("No data loaded", 24, 30);
+    ctx.fillText("No data loaded", 24, 32);
     return;
   }
 
-  const rect = $chart.getBoundingClientRect();
-  const padding = { left: 56, right: 24, top: 20, bottom: 32 };
+  const padding = { left: 74, right: 18, top: 20, bottom: 56 };
   const plotW = rect.width - padding.left - padding.right;
   const plotH = rect.height - padding.top - padding.bottom;
+  if (plotW <= 5 || plotH <= 5) return;
 
   const domain = computeDomain();
   const yrange = computeYRange(domain);
 
-  ctx.strokeStyle = "#2a3242";
+  ctx.strokeStyle = "#3a455d";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  for (let i = 0; i <= 4; i++) {
+  ctx.moveTo(padding.left, padding.top);
+  ctx.lineTo(padding.left, padding.top + plotH);
+  ctx.lineTo(padding.left + plotW, padding.top + plotH);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#273347";
+  ctx.beginPath();
+  for (let i = 0; i <= 4; i += 1) {
     const y = padding.top + (plotH / 4) * i;
     ctx.moveTo(padding.left, y);
     ctx.lineTo(padding.left + plotW, y);
@@ -190,29 +328,49 @@ function drawChart() {
   ctx.font = "11px var(--font-mono)";
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
-  for (let i = 0; i <= 4; i++) {
+  for (let i = 0; i <= 4; i += 1) {
     const value = yrange.max - ((yrange.max - yrange.min) / 4) * i;
     const y = padding.top + (plotH / 4) * i;
-    ctx.fillText(value.toFixed(2), padding.left - 6, y);
+    ctx.fillText(value.toFixed(2), padding.left - 8, y);
   }
 
-  ctx.textAlign = "left";
+  const xTicks = 4;
+  ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  ctx.fillText(fmtTime(domain.start), padding.left, padding.top + plotH + 8);
-  ctx.textAlign = "right";
-  ctx.fillText(fmtTime(domain.end), padding.left + plotW, padding.top + plotH + 8);
+  for (let i = 0; i <= xTicks; i += 1) {
+    const x = padding.left + (plotW / xTicks) * i;
+    const t = domain.start + ((domain.end - domain.start) / xTicks) * i;
+    const label = new Date(t).toISOString().slice(11, 19);
+    ctx.fillText(label, x, padding.top + plotH + 8);
+  }
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.fillStyle = "#b4bdcf";
+  ctx.fillText("Time (UTC)", padding.left + plotW / 2, rect.height - 6);
+
+  state.yUnit = resolveYUnit();
+  ctx.save();
+  ctx.translate(16, padding.top + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#b4bdcf";
+  ctx.fillText(`Value (${state.yUnit})`, 0, 0);
+  ctx.restore();
 
   state.series.forEach((s, idx) => {
     ctx.strokeStyle = palette[idx % palette.length];
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
     let started = false;
+
     s.values.forEach((v, i) => {
       const t = state.times[i];
       if (t < domain.start || t > domain.end) return;
       if (!Number.isFinite(v)) return;
-      const x = padding.left + ((t - domain.start) / (domain.end - domain.start)) * plotW;
-      const y = padding.top + (1 - (v - yrange.min) / (yrange.max - yrange.min)) * plotH;
+      const x = padding.left + ((t - domain.start) / (domain.end - domain.start || 1)) * plotW;
+      const y = padding.top + (1 - (v - yrange.min) / (yrange.max - yrange.min || 1)) * plotH;
       if (!started) {
         ctx.moveTo(x, y);
         started = true;
@@ -220,6 +378,7 @@ function drawChart() {
         ctx.lineTo(x, y);
       }
     });
+
     ctx.stroke();
   });
 }
@@ -238,9 +397,10 @@ function binarySearchTimes(target) {
 function showTooltip(x, y) {
   if (state.times.length === 0) return;
   const rect = $chart.getBoundingClientRect();
-  const padding = { left: 56, right: 24, top: 20, bottom: 32 };
+  const padding = { left: 74, right: 18, top: 20, bottom: 56 };
   const plotW = rect.width - padding.left - padding.right;
   const plotH = rect.height - padding.top - padding.bottom;
+
   if (x < padding.left || x > padding.left + plotW || y < padding.top || y > padding.top + plotH) {
     $tooltip.style.display = "none";
     return;
@@ -248,55 +408,56 @@ function showTooltip(x, y) {
 
   const domain = computeDomain();
   const t = domain.start + ((x - padding.left) / plotW) * (domain.end - domain.start);
-  const idx = binarySearchTimes(t);
+  const idx = Math.min(binarySearchTimes(t), state.times.length - 1);
   const timeValue = state.times[idx];
 
-  const lines = [];
-  lines.push(`<strong>${fmtTime(timeValue)}</strong>`);
+  const lines = [`<strong>${fmtTime(timeValue)}</strong>`];
   state.series.forEach((s, i) => {
     const v = s.values[idx];
-    const text = Number.isFinite(v) ? v.toFixed(3) : "n/a";
-    lines.push(`<span style="color:${palette[i % palette.length]}">${s.name}</span>: ${text}`);
+    const text = Number.isFinite(v) ? `${v.toFixed(3)} ${state.yUnit}` : "n/a";
+    lines.push(`<span style=\"color:${palette[i % palette.length]}\">${s.name}</span>: ${text}`);
   });
 
   $tooltip.innerHTML = lines.join("<br>");
   $tooltip.style.display = "block";
-  $tooltip.style.left = `${x + 16}px`;
-  $tooltip.style.top = `${y + 16}px`;
+  $tooltip.style.left = `${x + 14}px`;
+  $tooltip.style.top = `${y + 14}px`;
 }
 
 let dragStart = null;
 
 function drawSelection(startX, currentX) {
-  octx.clearRect(0, 0, $overlay.width, $overlay.height);
-  const rect = $chart.getBoundingClientRect();
+  const rect = $overlay.getBoundingClientRect();
+  octx.clearRect(0, 0, rect.width, rect.height);
   const left = Math.min(startX, currentX);
   const right = Math.max(startX, currentX);
   octx.fillStyle = "rgba(93, 214, 199, 0.15)";
-  octx.strokeStyle = "rgba(93, 214, 199, 0.8)";
+  octx.strokeStyle = "rgba(93, 214, 199, 0.85)";
   octx.lineWidth = 1;
   octx.fillRect(left, 0, right - left, rect.height);
   octx.strokeRect(left, 0, right - left, rect.height);
 }
 
 function clearSelection() {
-  octx.clearRect(0, 0, $overlay.width, $overlay.height);
+  const rect = $overlay.getBoundingClientRect();
+  octx.clearRect(0, 0, rect.width, rect.height);
 }
 
 async function loadSeries(rangeOverride = null) {
-  const cols = Array.from(state.selected.values());
+  const cols = Array.from(state.selected.values()).sort((a, b) => a - b);
   if (cols.length === 0) {
-    alert("Select at least one counter.");
+    setStatus("Select at least one instance.");
     return;
   }
+
   setStatus("Loading...");
   const params = new URLSearchParams();
   cols.forEach((c) => params.append("col", c));
   params.append("maxPoints", "2000");
 
   if (rangeOverride) {
-    params.append("start", String(rangeOverride.start));
-    params.append("end", String(rangeOverride.end));
+    params.append("start", String(Math.floor(rangeOverride.start)));
+    params.append("end", String(Math.floor(rangeOverride.end)));
   } else if (state.view.start && state.view.end) {
     params.append("start", String(state.view.start));
     params.append("end", String(state.view.end));
@@ -320,19 +481,43 @@ async function loadSeries(rangeOverride = null) {
   }
 
   drawChart();
-  setStatus(`Loaded ${state.times.length.toLocaleString()} points`);
+  setStatus(`Loaded ${state.times.length.toLocaleString()} points, ${state.series.length} series`);
 }
 
-$search.addEventListener("input", (e) => renderColumns(e.target.value));
+$search.addEventListener("input", () => {
+  const visible = getVisibleAttributes();
+  if (!visible.some((a) => a.key === state.selectedAttribute)) {
+    state.selectedAttribute = visible.length > 0 ? visible[0].key : null;
+  }
+  renderAttributes();
+  renderInstances();
+});
 
-document.getElementById("selectAll").addEventListener("click", () => {
-  state.columns.forEach((_, idx) => state.selected.add(idx));
-  renderColumns($search.value);
+document.getElementById("selectAllAttrs").addEventListener("click", () => {
+  const visible = getVisibleAttributes();
+  visible.forEach((attr) => {
+    attr.items.forEach((item) => state.selected.add(item.idx));
+  });
+  renderInstances();
 });
 
 document.getElementById("clearAll").addEventListener("click", () => {
   state.selected.clear();
-  renderColumns($search.value);
+  renderInstances();
+});
+
+document.getElementById("selectAllInstances").addEventListener("click", () => {
+  const attr = state.attributeMap.get(state.selectedAttribute);
+  if (!attr) return;
+  attr.items.forEach((item) => state.selected.add(item.idx));
+  renderInstances();
+});
+
+document.getElementById("clearInstances").addEventListener("click", () => {
+  const attr = state.attributeMap.get(state.selectedAttribute);
+  if (!attr) return;
+  attr.items.forEach((item) => state.selected.delete(item.idx));
+  renderInstances();
 });
 
 document.getElementById("loadSeries").addEventListener("click", () => loadSeries());
@@ -344,9 +529,7 @@ document.getElementById("resetZoom").addEventListener("click", () => {
 });
 
 document.querySelectorAll("[data-report]").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    selectByReport(btn.dataset.report);
-  });
+  btn.addEventListener("click", () => selectReport(btn.dataset.report));
 });
 
 $overlay.addEventListener("mousedown", (e) => {
@@ -368,7 +551,7 @@ $overlay.addEventListener("mouseup", (e) => {
   dragStart = null;
   clearSelection();
 
-  const padding = { left: 56, right: 24 };
+  const padding = { left: 74, right: 18 };
   const plotW = rect.width - padding.left - padding.right;
   const left = Math.min(startX, endX) - padding.left;
   const right = Math.max(startX, endX) - padding.left;
@@ -378,7 +561,10 @@ $overlay.addEventListener("mouseup", (e) => {
   const tStart = domain.start + (left / plotW) * (domain.end - domain.start);
   const tEnd = domain.start + (right / plotW) * (domain.end - domain.start);
 
-  loadSeries({ start: Math.max(tStart, state.range.start), end: Math.min(tEnd, state.range.end) });
+  loadSeries({
+    start: Math.max(tStart, state.range.start || tStart),
+    end: Math.min(tEnd, state.range.end || tEnd),
+  });
 });
 
 window.addEventListener("resize", drawChart);

@@ -31,13 +31,26 @@
       </div>
 
       <div class="section">
-        <div class="label">Find Counters</div>
-        <input id="search" type="text" placeholder="Type to filter..." />
+        <div class="label">Select Counters</div>
+        <input id="search" type="text" placeholder="Filter attributes..." />
         <div class="controls">
-          <button id="selectAll" class="btn ghost">Select All</button>
+          <button id="selectAllAttrs" class="btn ghost">Select All Shown</button>
           <button id="clearAll" class="btn ghost">Clear</button>
         </div>
-        <div id="columns" class="columns"></div>
+        <div class="selector-grid">
+          <div>
+            <div class="sub-label">Attributes</div>
+            <div id="attributes" class="listbox"></div>
+          </div>
+          <div>
+            <div class="sub-label">Instances</div>
+            <div class="controls tight">
+              <button id="selectAllInstances" class="btn ghost">All Instances</button>
+              <button id="clearInstances" class="btn ghost">Clear Instances</button>
+            </div>
+            <div id="instances" class="listbox"></div>
+          </div>
+        </div>
       </div>
 
       <div class="section">
