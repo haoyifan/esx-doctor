@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>esxtopviz</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="title">esxtopviz</div>
+        <div class="subtitle">Perfmon-style CSV explorer</div>
+      </div>
+
+      <div class="section">
+        <div class="label">Dataset</div>
+        <div id="filePath" class="mono">Loading...</div>
+        <div id="range" class="muted"></div>
+      </div>
+
+      <div class="section">
+        <div class="label">Reports</div>
+        <div class="row">
+          <button class="btn" data-report="cpu">CPU</button>
+          <button class="btn" data-report="memory">Memory</button>
+          <button class="btn" data-report="io">I/O</button>
+          <button class="btn" data-report="network">Network</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="label">Find Counters</div>
+        <input id="search" type="text" placeholder="Type to filter..." />
+        <div class="controls">
+          <button id="selectAll" class="btn ghost">Select All</button>
+          <button id="clearAll" class="btn ghost">Clear</button>
+        </div>
+        <div id="columns" class="columns"></div>
+      </div>
+
+      <div class="section">
+        <div class="label">View</div>
+        <div class="controls">
+          <button id="loadSeries" class="btn">Load</button>
+          <button id="resetZoom" class="btn ghost">Reset Zoom</button>
+        </div>
+        <div class="muted">Drag on chart to zoom. Hover to inspect values.</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="title">Timeline</div>
+        <div id="status" class="status">Idle</div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart"></canvas>
+        <canvas id="overlay"></canvas>
+        <div id="tooltip" class="tooltip"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
