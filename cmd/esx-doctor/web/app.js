@@ -41,6 +41,7 @@ const $filePicker = document.getElementById("filePicker");
 const $urlInput = document.getElementById("urlInput");
 const $status = document.getElementById("status");
 const $windowTabs = document.getElementById("windowTabs");
+const $splitter = document.getElementById("splitter");
 const $chart = document.getElementById("chart");
 const $overlay = document.getElementById("overlay");
 const $tooltip = document.getElementById("tooltip");
@@ -52,12 +53,17 @@ const $zoomPanWindow = document.getElementById("zoomPanWindow");
 const ctx = $chart.getContext("2d");
 const octx = $overlay.getContext("2d");
 let tooltipHovered = false;
+let hoverPoint = null;
+let dragCurrentX = null;
 const panDrag = {
   active: false,
   startX: 0,
   startIdx: 0,
   span: 1,
   maxStart: 0,
+};
+const splitDrag = {
+  active: false,
 };
 
 function fmtTime(ms) {
@@ -133,6 +139,14 @@ function renderWindowTabs() {
     if (w.id === state.activeWindowId) btn.classList.add("active");
     btn.textContent = w.name;
     btn.addEventListener("click", () => switchWindow(w.id));
+    btn.addEventListener("dblclick", () => {
+      const next = window.prompt("Rename window", w.name);
+      if (next === null) return;
+      const name = next.trim();
+      if (!name) return;
+      w.name = name;
+      renderWindowTabs();
+    });
     frag.appendChild(btn);
   });
   $windowTabs.appendChild(frag);
@@ -685,6 +699,8 @@ function drawChart() {
 
   if (state.times.length === 0 || state.series.length === 0) {
     $zoomPanWrap.classList.add("hidden");
+    hoverPoint = null;
+    redrawOverlay();
     ctx.fillStyle = "#9aa2b2";
     ctx.font = "14px var(--font-sans)";
     ctx.fillText("No data loaded", 24, 32);
@@ -775,6 +791,7 @@ function drawChart() {
   });
 
   updateZoomPanUI();
+  redrawOverlay();
 }
 
 function binarySearchTimes(target) {
@@ -844,7 +861,6 @@ let dragStart = null;
 
 function drawSelection(startX, currentX) {
   const rect = $overlay.getBoundingClientRect();
-  octx.clearRect(0, 0, rect.width, rect.height);
   const left = Math.min(startX, currentX);
   const right = Math.max(startX, currentX);
   octx.fillStyle = "rgba(93, 214, 199, 0.15)";
@@ -854,9 +870,32 @@ function drawSelection(startX, currentX) {
   octx.strokeRect(left, 0, right - left, rect.height);
 }
 
-function clearSelection() {
+function drawCrosshair(x, y) {
+  const rect = $overlay.getBoundingClientRect();
+  const padding = { left: 74, right: 18, top: 20, bottom: 56 };
+  const plotW = rect.width - padding.left - padding.right;
+  const plotH = rect.height - padding.top - padding.bottom;
+  if (x < padding.left || x > padding.left + plotW || y < padding.top || y > padding.top + plotH) return;
+  octx.strokeStyle = "rgba(186, 196, 219, 0.55)";
+  octx.lineWidth = 1;
+  octx.beginPath();
+  octx.moveTo(x, padding.top);
+  octx.lineTo(x, padding.top + plotH);
+  octx.moveTo(padding.left, y);
+  octx.lineTo(padding.left + plotW, y);
+  octx.stroke();
+}
+
+function redrawOverlay() {
   const rect = $overlay.getBoundingClientRect();
   octx.clearRect(0, 0, rect.width, rect.height);
+  if (hoverPoint) drawCrosshair(hoverPoint.x, hoverPoint.y);
+  if (dragStart && Number.isFinite(dragCurrentX)) drawSelection(dragStart.x, dragCurrentX);
+}
+
+function clearSelection() {
+  dragCurrentX = null;
+  redrawOverlay();
 }
 
 function zoomToRange(start, end) {
@@ -1076,6 +1115,27 @@ window.addEventListener("mouseup", () => {
   $zoomPanWindow.classList.remove("dragging");
 });
 
+$splitter.addEventListener("mousedown", (e) => {
+  splitDrag.active = true;
+  e.preventDefault();
+  document.body.style.userSelect = "none";
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (!splitDrag.active) return;
+  const minW = 260;
+  const maxW = Math.max(minW, window.innerWidth - 420);
+  const width = Math.max(minW, Math.min(e.clientX, maxW));
+  document.documentElement.style.setProperty("--sidebar-width", `${Math.round(width)}px`);
+});
+
+window.addEventListener("mouseup", () => {
+  if (!splitDrag.active) return;
+  splitDrag.active = false;
+  document.body.style.userSelect = "";
+  drawChart();
+});
+
 document.getElementById("resetZoom").addEventListener("click", () => {
   state.view.start = null;
   state.view.end = null;
@@ -1088,12 +1148,16 @@ document.getElementById("resetZoom").addEventListener("click", () => {
 $overlay.addEventListener("mousedown", (e) => {
   if (state.times.length === 0) return;
   dragStart = { x: e.offsetX };
+  dragCurrentX = e.offsetX;
+  hoverPoint = { x: e.offsetX, y: e.offsetY };
+  redrawOverlay();
 });
 
 $overlay.addEventListener("mousemove", (e) => {
+  hoverPoint = { x: e.offsetX, y: e.offsetY };
   showTooltip(e.offsetX, e.offsetY);
-  if (!dragStart) return;
-  drawSelection(dragStart.x, e.offsetX);
+  if (dragStart) dragCurrentX = e.offsetX;
+  redrawOverlay();
 });
 
 $overlay.addEventListener("mouseup", (e) => {
@@ -1126,10 +1190,15 @@ $overlay.addEventListener("dblclick", () => {
 
 $overlay.addEventListener("mouseleave", (e) => {
   if (e.relatedTarget === $tooltip || $tooltip.contains(e.relatedTarget)) return;
+  hoverPoint = null;
   $tooltip.style.display = "none";
-  if (!dragStart) return;
+  if (!dragStart) {
+    redrawOverlay();
+    return;
+  }
   dragStart = null;
   clearSelection();
+  redrawOverlay();
 });
 
 $tooltip.addEventListener("mouseenter", () => {
