@@ -750,6 +750,16 @@ func main() {
 		w.Header().Set("Content-Type", "image/png")
 		_, _ = w.Write(data)
 	})
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		data, err := webFS.ReadFile("web/icon.png")
+		if err != nil {
+			http.Error(w, "favicon not found", http.StatusInternalServerError)
+			return
+		}
+		// Serve the project PNG as a universal favicon fallback.
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(data)
+	})
 
 	addr := fmt.Sprintf(":%d", port)
 	log.Printf("esx-doctor listening on %s", addr)
