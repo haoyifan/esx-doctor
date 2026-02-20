@@ -132,7 +132,9 @@ function applySidebarCollapsed(collapsed) {
   } catch (_err) {
     // Ignore storage errors.
   }
-  drawChart();
+  requestAnimationFrame(() => {
+    drawChart();
+  });
 }
 
 function initSidebarState() {
