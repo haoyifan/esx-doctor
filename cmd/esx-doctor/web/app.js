@@ -1257,6 +1257,8 @@ async function loadSeries() {
     }
     if (choice === "suggested") {
       requestedCols = cols.slice(0, loadSeriesSoftLimit);
+      state.selected = new Set(requestedCols);
+      renderInstances();
       setStatus(`Loading first ${requestedCols.length}/${cols.length} instances for responsiveness...`);
     }
   }
