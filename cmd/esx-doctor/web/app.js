@@ -483,12 +483,8 @@ function renderInstances() {
     const name = document.createElement("div");
     name.textContent = item.instance;
 
-    const idx = document.createElement("span");
-    idx.textContent = `#${item.idx}`;
-
     label.appendChild(checkbox);
     label.appendChild(name);
-    label.appendChild(idx);
     frag.appendChild(label);
   });
 
