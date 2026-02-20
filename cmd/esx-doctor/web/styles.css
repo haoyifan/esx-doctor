@@ -199,6 +199,10 @@ body {
 .help-tip:hover::after {
   opacity: 1;
 }
+.help-tip.edge-right::after {
+  left: auto;
+  right: calc(100% + 8px);
+}
 .optional-panel {
   border: 1px solid var(--border);
   border-radius: 10px;
