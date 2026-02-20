@@ -40,7 +40,23 @@ type DataFile struct {
 	EndTime         time.Time
 	DataStartOffset int64
 	TimeLayout      string
-	mu              sync.RWMutex
+}
+
+type AppState struct {
+	mu sync.RWMutex
+	df *DataFile
+}
+
+func (s *AppState) Get() *DataFile {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.df
+}
+
+func (s *AppState) Replace(df *DataFile) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.df = df
 }
 
 const (
@@ -367,18 +383,65 @@ func main() {
 	if err != nil {
 		log.Fatalf("index build failed: %v", err)
 	}
+	state := &AppState{df: df}
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/meta", func(w http.ResponseWriter, r *http.Request) {
+		current := state.Get()
+		if current == nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no file loaded"})
+			return
+		}
 		payload := map[string]any{
-			"columns": df.Columns,
-			"rows":    df.Rows,
-			"start":   df.StartTime.UnixMilli(),
-			"end":     df.EndTime.UnixMilli(),
-			"file":    df.Path,
+			"columns": current.Columns,
+			"rows":    current.Rows,
+			"start":   current.StartTime.UnixMilli(),
+			"end":     current.EndTime.UnixMilli(),
+			"file":    current.Path,
 		}
 		writeJSON(w, http.StatusOK, payload)
+	})
+
+	mux.HandleFunc("/api/open", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "use POST"})
+			return
+		}
+		var req struct {
+			Path string `json:"path"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
+			return
+		}
+		req.Path = strings.TrimSpace(req.Path)
+		if req.Path == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "path is required"})
+			return
+		}
+		abs, err := filepath.Abs(req.Path)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid path"})
+			return
+		}
+		if _, err := os.Stat(abs); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "file not found"})
+			return
+		}
+		newDF, err := buildIndex(abs)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("index build failed: %v", err)})
+			return
+		}
+		state.Replace(newDF)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"file":  newDF.Path,
+			"rows":  newDF.Rows,
+			"start": newDF.StartTime.UnixMilli(),
+			"end":   newDF.EndTime.UnixMilli(),
+		})
 	})
 
 	mux.HandleFunc("/api/series", func(w http.ResponseWriter, r *http.Request) {
@@ -400,6 +463,11 @@ func main() {
 		}
 		if len(cols) == 0 {
 			writeJSON(w, http.StatusBadRequest, SeriesResponse{Error: "no columns selected"})
+			return
+		}
+		current := state.Get()
+		if current == nil {
+			writeJSON(w, http.StatusInternalServerError, SeriesResponse{Error: "no file loaded"})
 			return
 		}
 
@@ -424,7 +492,7 @@ func main() {
 			}
 		}
 
-		resp, err := df.extractSeries(cols, start, end, maxPoints)
+		resp, err := current.extractSeries(cols, start, end, maxPoints)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, SeriesResponse{Error: err.Error()})
 			return

@@ -18,6 +18,10 @@
         <div class="label">Dataset</div>
         <div id="filePath" class="mono">Loading...</div>
         <div id="range" class="muted"></div>
+        <input id="fileInput" type="text" placeholder="Enter CSV path..." />
+        <div class="controls">
+          <button id="openFile" class="btn">Open CSV</button>
+        </div>
       </div>
 
       <div class="section">
@@ -41,14 +45,6 @@
           <div>
             <div class="sub-label">Attributes</div>
             <div id="attributes" class="listbox"></div>
-          </div>
-          <div>
-            <div class="sub-label">Groups</div>
-            <div class="controls tight">
-              <button id="selectAllGroups" class="btn ghost">All Groups</button>
-              <button id="clearGroups" class="btn ghost">Clear Groups</button>
-            </div>
-            <div id="groups" class="listbox"></div>
           </div>
           <div>
             <div class="sub-label">Instances</div>

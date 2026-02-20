@@ -6,7 +6,6 @@ const state = {
   attributeMap: new Map(),
   selected: new Set(),
   selectedAttribute: null,
-  selectedGroupByAttribute: new Map(),
   times: [],
   series: [],
   range: { start: null, end: null },
@@ -29,10 +28,10 @@ const palette = [
 
 const $search = document.getElementById("search");
 const $attributes = document.getElementById("attributes");
-const $groups = document.getElementById("groups");
 const $instances = document.getElementById("instances");
 const $filePath = document.getElementById("filePath");
 const $range = document.getElementById("range");
+const $fileInput = document.getElementById("fileInput");
 const $status = document.getElementById("status");
 const $chart = document.getElementById("chart");
 const $overlay = document.getElementById("overlay");
@@ -56,7 +55,6 @@ function parsePDHColumn(raw, idx) {
     raw,
     object: "Other",
     instance: "Global",
-    group: "All",
     counter: raw,
     attributeKey: `Other|${raw}`,
     attributeLabel: raw,
@@ -72,15 +70,6 @@ function parsePDHColumn(raw, idx) {
   const objectBase = objectPart.split("(")[0] || objectPart;
   const instanceMatch = objectPart.match(/\((.*)\)/);
   const instance = instanceMatch ? instanceMatch[1] : "Global";
-
-  let group = "All";
-  if (instance.includes(":")) {
-    const t = instance.split(":")[0].trim();
-    group = t || "All";
-  } else if (instance.includes("/")) {
-    const t = instance.split("/")[0].trim();
-    group = t || "All";
-  }
 
   let unit = "value";
   if (/^%/.test(counter) || /percent/i.test(counter)) unit = "%";
@@ -99,7 +88,6 @@ function parsePDHColumn(raw, idx) {
     raw,
     object: objectBase,
     instance,
-    group,
     counter,
     attributeKey,
     attributeLabel,
@@ -107,44 +95,35 @@ function parsePDHColumn(raw, idx) {
   };
 }
 
+function currentAttribute() {
+  return state.attributeMap.get(state.selectedAttribute) || null;
+}
+
+function resetDataState() {
+  state.selected.clear();
+  state.times = [];
+  state.series = [];
+  state.view.start = null;
+  state.view.end = null;
+  state.zoomStack = [];
+  drawChart();
+}
+
 function buildAttributeModel() {
   state.attributeMap = new Map();
-
   state.parsedColumns.forEach((item) => {
     const entry = state.attributeMap.get(item.attributeKey) || {
       key: item.attributeKey,
       label: item.attributeLabel,
       unit: item.unit,
       items: [],
-      groups: new Map(),
     };
-
     entry.items.push(item);
-    const grp = entry.groups.get(item.group) || {
-      key: item.group,
-      label: item.group,
-      items: [],
-    };
-    grp.items.push(item);
-    entry.groups.set(item.group, grp);
-
     state.attributeMap.set(item.attributeKey, entry);
   });
 
-  state.attributes = Array.from(state.attributeMap.values()).sort((a, b) => {
-    return a.label.localeCompare(b.label);
-  });
-
-  if (!state.selectedAttribute && state.attributes.length > 0) {
-    state.selectedAttribute = state.attributes[0].key;
-  }
-
-  state.attributes.forEach((attr) => {
-    if (!state.selectedGroupByAttribute.has(attr.key)) {
-      const firstGroup = Array.from(attr.groups.keys()).sort()[0] || "All";
-      state.selectedGroupByAttribute.set(attr.key, firstGroup);
-    }
-  });
+  state.attributes = Array.from(state.attributeMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+  state.selectedAttribute = state.attributes.length > 0 ? state.attributes[0].key : null;
 }
 
 function getVisibleAttributes() {
@@ -153,24 +132,20 @@ function getVisibleAttributes() {
   return state.attributes.filter((a) => a.label.toLowerCase().includes(filter));
 }
 
-function currentAttribute() {
-  return state.attributeMap.get(state.selectedAttribute) || null;
-}
-
-function selectedGroupForAttribute(attr) {
-  if (!attr) return null;
-  const saved = state.selectedGroupByAttribute.get(attr.key);
-  if (saved && attr.groups.has(saved)) return saved;
-  const fallback = Array.from(attr.groups.keys()).sort()[0] || null;
-  if (fallback) state.selectedGroupByAttribute.set(attr.key, fallback);
-  return fallback;
+function enforceSingleAttributeSelection() {
+  const attr = currentAttribute();
+  if (!attr) return;
+  const allowed = new Set(attr.items.map((item) => item.idx));
+  for (const idx of Array.from(state.selected.values())) {
+    if (!allowed.has(idx)) state.selected.delete(idx);
+  }
 }
 
 function renderAttributes() {
   const visible = getVisibleAttributes();
   $attributes.innerHTML = "";
-  const frag = document.createDocumentFragment();
 
+  const frag = document.createDocumentFragment();
   visible.forEach((attr) => {
     const label = document.createElement("label");
     if (state.selectedAttribute === attr.key) label.classList.add("active");
@@ -181,9 +156,10 @@ function renderAttributes() {
     radio.checked = state.selectedAttribute === attr.key;
     radio.addEventListener("change", () => {
       state.selectedAttribute = attr.key;
+      enforceSingleAttributeSelection();
       renderAttributes();
-      renderGroups();
       renderInstances();
+      drawChart();
     });
 
     const name = document.createElement("div");
@@ -201,55 +177,16 @@ function renderAttributes() {
   $attributes.appendChild(frag);
 }
 
-function renderGroups() {
-  const attr = currentAttribute();
-  $groups.innerHTML = "";
-  if (!attr) return;
-
-  const selectedGroup = selectedGroupForAttribute(attr);
-  const groups = Array.from(attr.groups.values()).sort((a, b) => a.label.localeCompare(b.label));
-  const frag = document.createDocumentFragment();
-
-  groups.forEach((group) => {
-    const label = document.createElement("label");
-    if (selectedGroup === group.key) label.classList.add("active");
-
-    const radio = document.createElement("input");
-    radio.type = "radio";
-    radio.name = "group";
-    radio.checked = selectedGroup === group.key;
-    radio.addEventListener("change", () => {
-      state.selectedGroupByAttribute.set(attr.key, group.key);
-      renderGroups();
-      renderInstances();
-    });
-
-    const name = document.createElement("div");
-    name.textContent = group.label;
-
-    const count = document.createElement("span");
-    count.textContent = `${group.items.length}`;
-
-    label.appendChild(radio);
-    label.appendChild(name);
-    label.appendChild(count);
-    frag.appendChild(label);
-  });
-
-  $groups.appendChild(frag);
-}
-
 function renderInstances() {
   const attr = currentAttribute();
   $instances.innerHTML = "";
   if (!attr) return;
 
-  const groupKey = selectedGroupForAttribute(attr);
-  const group = groupKey ? attr.groups.get(groupKey) : null;
-  const items = group ? group.items : attr.items;
-  const sorted = [...items].sort((a, b) => a.instance.localeCompare(b.instance));
+  enforceSingleAttributeSelection();
 
+  const sorted = [...attr.items].sort((a, b) => a.instance.localeCompare(b.instance));
   const frag = document.createDocumentFragment();
+
   sorted.forEach((item) => {
     const label = document.createElement("label");
 
@@ -289,17 +226,13 @@ function selectReport(type) {
   if (!first) return;
 
   state.selectedAttribute = first.key;
-  const defaultGroup = selectedGroupForAttribute(first);
-  if (defaultGroup) state.selectedGroupByAttribute.set(first.key, defaultGroup);
+  state.selected.clear();
+  first.items.slice(0, 4).forEach((item) => state.selected.add(item.idx));
   renderAttributes();
-  renderGroups();
   renderInstances();
 }
 
-async function loadMeta() {
-  const res = await fetch("/api/meta");
-  const data = await res.json();
-
+function applyMeta(data) {
   state.columns = data.columns || [];
   state.file = data.file || "";
   state.rows = data.rows || 0;
@@ -311,23 +244,53 @@ async function loadMeta() {
   state.indexMap = new Map(state.parsedColumns.map((item) => [item.idx, item]));
 
   buildAttributeModel();
+  resetDataState();
 
   $filePath.textContent = state.file;
+  $fileInput.value = state.file;
   if (state.range.start && state.range.end) {
     $range.textContent = `${fmtTime(state.range.start)} to ${fmtTime(state.range.end)} (${state.rows.toLocaleString()} rows)`;
+  } else {
+    $range.textContent = "";
   }
 
   const initialAttr = state.attributes.find((a) => /Cpu Load.*1 Minute Avg/i.test(a.label)) || state.attributes[0];
   if (initialAttr) {
     state.selectedAttribute = initialAttr.key;
-    const firstGroup = selectedGroupForAttribute(initialAttr);
-    const group = firstGroup ? initialAttr.groups.get(firstGroup) : null;
-    (group ? group.items : initialAttr.items).slice(0, 2).forEach((item) => state.selected.add(item.idx));
+    initialAttr.items.slice(0, 2).forEach((item) => state.selected.add(item.idx));
   }
 
   renderAttributes();
-  renderGroups();
   renderInstances();
+}
+
+async function loadMeta() {
+  const res = await fetch("/api/meta");
+  const data = await res.json();
+  applyMeta(data);
+}
+
+async function openFile(path) {
+  const trimmed = (path || "").trim();
+  if (!trimmed) {
+    setStatus("Enter a CSV path first.");
+    return;
+  }
+
+  setStatus("Opening CSV...");
+  const res = await fetch("/api/open", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path: trimmed }),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    setStatus(data.error || "Failed to open CSV");
+    return;
+  }
+
+  await loadMeta();
+  await loadSeries();
 }
 
 function resizeCanvas() {
@@ -376,14 +339,8 @@ function computeYRange(domain) {
 }
 
 function resolveYUnit() {
-  const units = new Set();
-  state.selected.forEach((idx) => {
-    const item = state.indexMap.get(idx);
-    if (item) units.add(item.unit || "value");
-  });
-  if (units.size === 0) return "value";
-  if (units.size === 1) return Array.from(units)[0];
-  return "mixed";
+  const attr = currentAttribute();
+  return attr ? (attr.unit || "value") : "value";
 }
 
 function drawChart() {
@@ -511,14 +468,11 @@ function showTooltip(x, y) {
   const idx = Math.min(binarySearchTimes(t), state.times.length - 1);
   const timeValue = state.times[idx];
 
-  const rows = state.series.map((s, i) => {
-    const v = s.values[idx];
-    return {
-      name: s.name,
-      color: palette[i % palette.length],
-      value: v,
-    };
-  });
+  const rows = state.series.map((s, i) => ({
+    name: s.name,
+    color: palette[i % palette.length],
+    value: s.values[idx],
+  }));
 
   rows.sort((a, b) => {
     const af = Number.isFinite(a.value);
@@ -564,12 +518,11 @@ function zoomToRange(start, end) {
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
 
   const domain = computeDomain();
-  if (domain) {
-    state.zoomStack.push({ start: domain.start, end: domain.end });
-  }
+  if (domain) state.zoomStack.push({ start: domain.start, end: domain.end });
 
   state.view.start = Math.max(start, state.range.start || start);
   state.view.end = Math.min(end, state.range.end || end);
+
   drawChart();
   setStatus(`Zoom ${fmtTime(state.view.start)} to ${fmtTime(state.view.end)}`);
 }
@@ -579,12 +532,12 @@ function zoomOut() {
   const prev = state.zoomStack.pop();
   if (!prev) return;
 
-  if (prev.start === state.times[0] && prev.end === state.times[state.times.length - 1]) {
+  state.view.start = prev.start;
+  state.view.end = prev.end;
+
+  if (state.view.start === state.times[0] && state.view.end === state.times[state.times.length - 1]) {
     state.view.start = null;
     state.view.end = null;
-  } else {
-    state.view.start = prev.start;
-    state.view.end = prev.end;
   }
 
   drawChart();
@@ -592,9 +545,16 @@ function zoomOut() {
 }
 
 async function loadSeries() {
+  const attr = currentAttribute();
+  if (!attr) {
+    setStatus("No attribute selected.");
+    return;
+  }
+
+  enforceSingleAttributeSelection();
   const cols = Array.from(state.selected.values()).sort((a, b) => a - b);
   if (cols.length === 0) {
-    setStatus("Select at least one instance.");
+    setStatus("Select at least one instance from the selected attribute.");
     return;
   }
 
@@ -624,17 +584,22 @@ $search.addEventListener("input", () => {
   const visible = getVisibleAttributes();
   if (!visible.some((a) => a.key === state.selectedAttribute)) {
     state.selectedAttribute = visible.length > 0 ? visible[0].key : null;
+    enforceSingleAttributeSelection();
   }
   renderAttributes();
-  renderGroups();
   renderInstances();
 });
 
 document.getElementById("selectAllAttrs").addEventListener("click", () => {
   const visible = getVisibleAttributes();
-  visible.forEach((attr) => {
-    attr.items.forEach((item) => state.selected.add(item.idx));
-  });
+  if (visible.length === 0) return;
+
+  // Keep single-attribute mode: pick the first visible attribute and select its instances.
+  const attr = visible[0];
+  state.selectedAttribute = attr.key;
+  state.selected.clear();
+  attr.items.forEach((item) => state.selected.add(item.idx));
+  renderAttributes();
   renderInstances();
 });
 
@@ -643,36 +608,24 @@ document.getElementById("clearAll").addEventListener("click", () => {
   renderInstances();
 });
 
-document.getElementById("selectAllGroups").addEventListener("click", () => {
-  const attr = currentAttribute();
-  if (!attr) return;
-  attr.items.forEach((item) => state.selected.add(item.idx));
-  renderInstances();
-});
-
-document.getElementById("clearGroups").addEventListener("click", () => {
-  const attr = currentAttribute();
-  if (!attr) return;
-  attr.items.forEach((item) => state.selected.delete(item.idx));
-  renderInstances();
-});
-
 document.getElementById("selectAllInstances").addEventListener("click", () => {
   const attr = currentAttribute();
   if (!attr) return;
-  const groupKey = selectedGroupForAttribute(attr);
-  const group = groupKey ? attr.groups.get(groupKey) : null;
-  (group ? group.items : attr.items).forEach((item) => state.selected.add(item.idx));
+  state.selected.clear();
+  attr.items.forEach((item) => state.selected.add(item.idx));
   renderInstances();
 });
 
 document.getElementById("clearInstances").addEventListener("click", () => {
   const attr = currentAttribute();
   if (!attr) return;
-  const groupKey = selectedGroupForAttribute(attr);
-  const group = groupKey ? attr.groups.get(groupKey) : null;
-  (group ? group.items : attr.items).forEach((item) => state.selected.delete(item.idx));
+  attr.items.forEach((item) => state.selected.delete(item.idx));
   renderInstances();
+});
+
+document.getElementById("openFile").addEventListener("click", () => openFile($fileInput.value));
+$fileInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") openFile($fileInput.value);
 });
 
 document.getElementById("loadSeries").addEventListener("click", () => loadSeries());
