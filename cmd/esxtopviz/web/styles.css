@@ -43,12 +43,6 @@ body {
   letter-spacing: 0.3px;
 }
 
-.brand .subtitle {
-  color: var(--muted);
-  font-size: 13px;
-  margin-top: 4px;
-}
-
 .section { margin-top: 24px; }
 
 .label {
@@ -75,6 +69,13 @@ body {
   cursor: pointer;
   font-size: 12px;
   transition: transform 0.1s ease, border 0.2s ease;
+}
+.btn.primary {
+  width: 100%;
+  background: linear-gradient(180deg, #1f7f74 0%, #155f57 100%);
+  border-color: #2aa394;
+  color: #ecfffb;
+  font-weight: 600;
 }
 
 .btn:hover { transform: translateY(-1px); border-color: var(--accent); }
@@ -151,6 +152,11 @@ input[type="file"] {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .topbar .title { font-size: 18px; font-weight: 600; }

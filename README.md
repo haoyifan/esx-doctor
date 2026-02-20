@@ -1,6 +1,6 @@
-# esxtopviz
+# HyperScope
 
-Lightweight, perfmon-style viewer for large esxtop/PDH CSV exports. It builds a sparse index and serves a local web UI for interactive charting.
+Lightweight viewer for large esxtop/PDH CSV exports. It builds a sparse index and serves a local web UI for interactive charting.
 
 ## Requirements
 

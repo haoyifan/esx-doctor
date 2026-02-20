@@ -339,12 +339,26 @@ function downloadScreenshot() {
     return;
   }
   const out = document.createElement("canvas");
+  const titleH = 48;
   out.width = $chart.width;
-  out.height = $chart.height;
+  out.height = $chart.height + titleH;
   const octx2 = out.getContext("2d");
-  octx2.drawImage($chart, 0, 0);
+  octx2.fillStyle = "#0b0f16";
+  octx2.fillRect(0, 0, out.width, out.height);
+  octx2.drawImage($chart, 0, titleH);
+  const attr = currentAttribute();
+  const domain = computeDomain();
+  const title = attr ? attr.label : "Graph";
+  const subtitle = domain ? `${fmtTime(domain.start)} to ${fmtTime(domain.end)}` : "";
+  octx2.fillStyle = "#e6e8ef";
+  octx2.font = "600 14px Figtree, Segoe UI, sans-serif";
+  octx2.fillText(title, 12, 20);
+  octx2.fillStyle = "#9aa2b2";
+  octx2.font = "12px JetBrains Mono, ui-monospace, monospace";
+  octx2.fillText(subtitle, 12, 38);
   const link = document.createElement("a");
-  link.download = `esxtopviz-${Date.now()}.png`;
+  const safe = (title || "graph").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase();
+  link.download = `hyperscope-${safe || "graph"}-${Date.now()}.png`;
   link.href = out.toDataURL("image/png");
   link.click();
 }
@@ -391,9 +405,10 @@ function updateZoomPanUI() {
 
   const maxStart = Math.max(0, state.times.length - 1 - span);
 
-  $zoomPan.max = String(maxStart);
+  $zoomPan.max = String(Math.max(0, state.times.length - 1));
   $zoomPan.value = String(Math.min(startIdx, maxStart));
   $zoomPan.dataset.span = String(span);
+  $zoomPan.dataset.maxStart = String(maxStart);
   $zoomPanLabel.textContent = `Zoom window: ${fmtTime(state.view.start)} to ${fmtTime(state.view.end)}`;
   $zoomPanWrap.classList.remove("hidden");
 }
@@ -659,7 +674,6 @@ function zoomOut() {
   }
 
   drawChart();
-  setStatus("Zoomed out");
 }
 
 async function loadSeries() {
@@ -758,8 +772,9 @@ $zoomPan.addEventListener("input", (e) => {
   if (state.times.length < 2) return;
   const span = Number.isInteger(state.panSpan) ? state.panSpan : parseInt($zoomPan.dataset.span || "0", 10);
   const startIdx = parseInt(e.target.value || "0", 10);
+  const maxStart = parseInt($zoomPan.dataset.maxStart || "0", 10);
   if (!Number.isFinite(span) || span < 1) return;
-  const clampedStart = Math.max(0, Math.min(startIdx, state.times.length - 1 - span));
+  const clampedStart = Math.max(0, Math.min(startIdx, maxStart));
   const endIdx = Math.min(state.times.length - 1, clampedStart + span);
   state.view.start = state.times[clampedStart];
   state.view.end = state.times[endIdx];
