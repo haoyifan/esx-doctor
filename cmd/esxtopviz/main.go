@@ -158,7 +158,7 @@ func buildIndex(path string) (*DataFile, error) {
 			if df.TimeLayout == "" {
 				df.TimeLayout = layout
 			}
-			if df.Rows == 0 {
+			if row == 1 {
 				df.StartTime = timestamp
 			}
 			df.EndTime = timestamp
