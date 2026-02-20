@@ -583,6 +583,10 @@ async function loadSeries() {
   const params = new URLSearchParams();
   cols.forEach((c) => params.append("col", c));
   params.append("maxPoints", "0");
+  if (Number.isFinite(state.range.start) && Number.isFinite(state.range.end)) {
+    params.append("start", String(state.range.start));
+    params.append("end", String(state.range.end));
+  }
 
   const res = await fetch(`/api/series?${params.toString()}`);
   const data = await res.json();
