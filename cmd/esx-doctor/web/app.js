@@ -12,6 +12,7 @@ const state = {
   selected: new Set(),
   selectedAttribute: null,
   times: [],
+  rawSeries: [],
   series: [],
   range: { start: null, end: null },
   view: { start: null, end: null },
@@ -20,6 +21,11 @@ const state = {
   file: "",
   rows: 0,
   yUnit: "value",
+  filter: {
+    min: null,
+    max: null,
+    minActivePct: 0,
+  },
 };
 
 const palette = [
@@ -47,6 +53,9 @@ const $filePath = document.getElementById("filePath");
 const $filePicker = document.getElementById("filePicker");
 const $urlInput = document.getElementById("urlInput");
 const $themeSelect = document.getElementById("themeSelect");
+const $filterMin = document.getElementById("filterMin");
+const $filterMax = document.getElementById("filterMax");
+const $filterActivePct = document.getElementById("filterActivePct");
 const $status = document.getElementById("status");
 const $selectedAttributeLabel = document.getElementById("selectedAttributeLabel");
 const $windowTabs = document.getElementById("windowTabs");
@@ -129,6 +138,15 @@ function cloneSeries(series) {
   }));
 }
 
+function cloneFilter(filter) {
+  const f = filter || {};
+  return {
+    min: Number.isFinite(f.min) ? f.min : null,
+    max: Number.isFinite(f.max) ? f.max : null,
+    minActivePct: Number.isFinite(f.minActivePct) ? f.minActivePct : 0,
+  };
+}
+
 function makeWindowFromCurrent(name) {
   return {
     id: `w-${state.windowSeq++}`,
@@ -137,12 +155,14 @@ function makeWindowFromCurrent(name) {
     selectedAttribute: state.selectedAttribute,
     activeReport: state.activeReport,
     times: [...state.times],
+    rawSeries: cloneSeries(state.rawSeries),
     series: cloneSeries(state.series),
     view: { ...state.view },
     zoomStack: [...state.zoomStack],
     panSpan: state.panSpan,
     search: $search.value || "",
     instanceSearch: $instanceSearch.value || "",
+    filter: cloneFilter(state.filter),
     status: $status.textContent || "Idle",
   };
 }
@@ -154,12 +174,14 @@ function saveCurrentWindowState() {
   w.selectedAttribute = state.selectedAttribute;
   w.activeReport = state.activeReport;
   w.times = [...state.times];
+  w.rawSeries = cloneSeries(state.rawSeries);
   w.series = cloneSeries(state.series);
   w.view = { ...state.view };
   w.zoomStack = [...state.zoomStack];
   w.panSpan = state.panSpan;
   w.search = $search.value || "";
   w.instanceSearch = $instanceSearch.value || "";
+  w.filter = cloneFilter(state.filter);
   w.status = $status.textContent || "Idle";
 }
 
@@ -169,12 +191,15 @@ function loadWindowState(w) {
   state.selectedAttribute = w.selectedAttribute;
   state.activeReport = w.activeReport || null;
   state.times = [...w.times];
+  state.rawSeries = cloneSeries(w.rawSeries);
   state.series = cloneSeries(w.series);
   state.view = { ...w.view };
   state.zoomStack = [...w.zoomStack];
   state.panSpan = w.panSpan;
   $search.value = w.search || "";
   $instanceSearch.value = w.instanceSearch || "";
+  state.filter = cloneFilter(w.filter);
+  syncFilterInputs();
   $status.textContent = w.status || "Idle";
 }
 
@@ -328,12 +353,84 @@ function updateSelectedAttributeHeader() {
 function resetDataState() {
   state.selected.clear();
   state.times = [];
+  state.rawSeries = [];
   state.series = [];
   state.view.start = null;
   state.view.end = null;
   state.zoomStack = [];
   state.panSpan = null;
   drawChart();
+}
+
+function syncFilterInputs() {
+  if ($filterMin) $filterMin.value = Number.isFinite(state.filter.min) ? String(state.filter.min) : "";
+  if ($filterMax) $filterMax.value = Number.isFinite(state.filter.max) ? String(state.filter.max) : "";
+  if ($filterActivePct) $filterActivePct.value = String(Number.isFinite(state.filter.minActivePct) ? state.filter.minActivePct : 0);
+}
+
+function parseOptionalNumber(value) {
+  const raw = (value || "").trim();
+  if (raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
+
+function applySeriesFilter(baseSeries, filter) {
+  if (!Array.isArray(baseSeries) || baseSeries.length === 0) return [];
+  const f = cloneFilter(filter);
+  const useMin = Number.isFinite(f.min);
+  const useMax = Number.isFinite(f.max);
+  const activeThreshold = Math.max(0, Math.min(100, f.minActivePct || 0));
+  if (!useMin && !useMax && activeThreshold <= 0) return cloneSeries(baseSeries);
+
+  return baseSeries.filter((s) => {
+    const total = Array.isArray(s.values) ? s.values.length : 0;
+    if (total === 0) return false;
+    let active = 0;
+    for (let i = 0; i < total; i += 1) {
+      const v = s.values[i];
+      if (!Number.isFinite(v)) continue;
+      if (useMin && v < f.min) continue;
+      if (useMax && v > f.max) continue;
+      active += 1;
+    }
+    const pct = (active / total) * 100;
+    return pct >= activeThreshold;
+  });
+}
+
+function refreshFilteredSeries() {
+  state.series = applySeriesFilter(state.rawSeries, state.filter);
+  drawChart();
+}
+
+function applyAdvancedFilterFromInputs() {
+  const min = parseOptionalNumber($filterMin ? $filterMin.value : "");
+  const max = parseOptionalNumber($filterMax ? $filterMax.value : "");
+  const minActiveRaw = parseOptionalNumber($filterActivePct ? $filterActivePct.value : "0");
+  const minActivePct = Number.isFinite(minActiveRaw) ? Math.max(0, Math.min(100, minActiveRaw)) : 0;
+
+  if (Number.isFinite(min) && Number.isFinite(max) && min > max) {
+    setStatus("Invalid filter: Min value must be <= Max value.");
+    return;
+  }
+
+  state.filter = { min, max, minActivePct };
+  syncFilterInputs();
+  refreshFilteredSeries();
+  saveCurrentWindowState();
+  const kept = state.series.length;
+  const total = state.rawSeries.length;
+  setStatus(`Filter applied: ${kept}/${total} instances shown.`);
+}
+
+function resetAdvancedFilter() {
+  state.filter = { min: null, max: null, minActivePct: 0 };
+  syncFilterInputs();
+  refreshFilteredSeries();
+  saveCurrentWindowState();
+  setStatus("Filter reset.");
 }
 
 function buildAttributeModel() {
@@ -559,6 +656,7 @@ function applyMeta(data) {
 
   buildAttributeModel();
   resetDataState();
+  state.filter = { min: null, max: null, minActivePct: 0 };
 
   $filePath.textContent = state.file;
 
@@ -581,6 +679,7 @@ function applyMeta(data) {
   renderReports();
   renderAttributes();
   renderInstances();
+  syncFilterInputs();
 }
 
 async function loadMeta() {
@@ -1078,14 +1177,16 @@ async function loadSeries() {
   const target = state.windows.find((w) => w.id === targetWindowId);
   if (target) {
     target.times = [...nextTimes];
-    target.series = cloneSeries(nextSeries);
+    target.rawSeries = cloneSeries(nextSeries);
+    target.series = cloneSeries(applySeriesFilter(nextSeries, state.filter));
     target.view = { start: null, end: null };
     target.zoomStack = [];
     target.panSpan = null;
   }
   if (state.activeWindowId !== targetWindowId) return;
   state.times = nextTimes;
-  state.series = nextSeries;
+  state.rawSeries = cloneSeries(nextSeries);
+  state.series = applySeriesFilter(nextSeries, state.filter);
   state.view.start = null;
   state.view.end = null;
   state.zoomStack = [];
@@ -1129,6 +1230,8 @@ $instanceSearch.addEventListener("input", () => {
 
 document.getElementById("openFile").addEventListener("click", () => openPickedFile());
 document.getElementById("openUrl").addEventListener("click", () => openFromURL());
+document.getElementById("applyFilter").addEventListener("click", () => applyAdvancedFilterFromInputs());
+document.getElementById("resetFilter").addEventListener("click", () => resetAdvancedFilter());
 $urlInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") openFromURL();
 });
