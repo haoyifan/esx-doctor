@@ -72,6 +72,11 @@ const $zoomPanWrap = document.getElementById("zoomPanWrap");
 const $zoomPanLabel = document.getElementById("zoomPanLabel");
 const $zoomPanTrack = document.getElementById("zoomPanTrack");
 const $zoomPanWindow = document.getElementById("zoomPanWindow");
+const $loadGuardModal = document.getElementById("loadGuardModal");
+const $loadGuardBody = document.getElementById("loadGuardBody");
+const $loadGuardCancel = document.getElementById("loadGuardCancel");
+const $loadGuardSuggested = document.getElementById("loadGuardSuggested");
+const $loadGuardAll = document.getElementById("loadGuardAll");
 
 const ctx = $chart.getContext("2d");
 const octx = $overlay.getContext("2d");
@@ -164,6 +169,45 @@ function setStatus(msg) {
   $status.textContent = msg;
   const w = state.windows.find((x) => x.id === state.activeWindowId);
   if (w) w.status = msg;
+}
+
+function chooseLargeLoadAction(totalSelected) {
+  return new Promise((resolve) => {
+    if (!$loadGuardModal || !$loadGuardBody || !$loadGuardCancel || !$loadGuardSuggested || !$loadGuardAll) {
+      resolve("suggested");
+      return;
+    }
+    $loadGuardBody.textContent = `You selected ${totalSelected} instances.\n\nTo keep the app responsive, the recommended option loads the first ${loadSeriesSoftLimit} instances.`;
+    $loadGuardModal.classList.remove("hidden");
+
+    const cleanup = () => {
+      $loadGuardModal.classList.add("hidden");
+      $loadGuardCancel.removeEventListener("click", onCancel);
+      $loadGuardSuggested.removeEventListener("click", onSuggested);
+      $loadGuardAll.removeEventListener("click", onAll);
+      $loadGuardModal.removeEventListener("click", onBackdrop);
+      window.removeEventListener("keydown", onKey);
+    };
+    const finish = (choice) => {
+      cleanup();
+      resolve(choice);
+    };
+    const onCancel = () => finish("cancel");
+    const onSuggested = () => finish("suggested");
+    const onAll = () => finish("all");
+    const onBackdrop = (e) => {
+      if (e.target === $loadGuardModal) finish("cancel");
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") finish("cancel");
+    };
+
+    $loadGuardCancel.addEventListener("click", onCancel);
+    $loadGuardSuggested.addEventListener("click", onSuggested);
+    $loadGuardAll.addEventListener("click", onAll);
+    $loadGuardModal.addEventListener("click", onBackdrop);
+    window.addEventListener("keydown", onKey);
+  });
 }
 
 function setDatasetMode(mode) {
@@ -1202,9 +1246,12 @@ async function loadSeries() {
   }
   let requestedCols = cols;
   if (cols.length > loadSeriesSoftLimit) {
-    const msg = `You selected ${cols.length} instances. By default, esx-doctor loads the first ${loadSeriesSoftLimit} to keep the app responsive.\n\nClick OK to load all ${cols.length} instances.\nClick Cancel to load only the first ${loadSeriesSoftLimit}.`;
-    const loadAll = window.confirm(msg);
-    if (!loadAll) {
+    const choice = await chooseLargeLoadAction(cols.length);
+    if (choice === "cancel") {
+      setStatus("Load canceled.");
+      return;
+    }
+    if (choice === "suggested") {
       requestedCols = cols.slice(0, loadSeriesSoftLimit);
       setStatus(`Loading first ${requestedCols.length}/${cols.length} instances for responsiveness...`);
     }
