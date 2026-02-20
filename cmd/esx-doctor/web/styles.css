@@ -192,7 +192,7 @@ body.sidebar-collapsed .sidebar {
 .label-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
 }
 .help-tip {
