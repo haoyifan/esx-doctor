@@ -77,6 +77,9 @@ const octx = $overlay.getContext("2d");
 let tooltipHovered = false;
 let hoverPoint = null;
 let dragCurrentX = null;
+let pointerMovePending = null;
+let pointerMoveRAF = 0;
+let tooltipSeriesIndex = -1;
 const panDrag = {
   active: false,
   startX: 0,
@@ -393,6 +396,7 @@ function resetDataState() {
   state.times = [];
   state.rawSeries = [];
   state.series = [];
+  tooltipSeriesIndex = -1;
   state.view.start = null;
   state.view.end = null;
   state.zoomStack = [];
@@ -436,6 +440,7 @@ function applySeriesFilter(baseSeries, filter) {
 
 function refreshFilteredSeries() {
   state.series = applySeriesFilter(state.rawSeries, state.filter);
+  tooltipSeriesIndex = -1;
   drawChart();
 }
 
@@ -615,7 +620,7 @@ function renderAttributes() {
     name.textContent = attr.label;
 
     const count = document.createElement("span");
-    count.textContent = `${attr.items.length} instances`;
+    count.textContent = state.selectedAttribute === attr.key ? `${attr.items.length} instances` : "";
 
     label.appendChild(radio);
     label.appendChild(name);
@@ -1029,6 +1034,7 @@ function showTooltip(x, y) {
 
   if (x < padding.left || x > padding.left + plotW || y < padding.top || y > padding.top + plotH) {
     $tooltip.style.display = "none";
+    tooltipSeriesIndex = -1;
     return;
   }
 
@@ -1037,29 +1043,31 @@ function showTooltip(x, y) {
   const idx = Math.min(binarySearchTimes(t), state.times.length - 1);
   const timeValue = state.times[idx];
 
-  const colors = getSeriesPalette();
-  const rows = state.series.map((s, i) => ({
-    name: s.name,
-    color: colors[i % colors.length],
-    value: s.values[idx],
-  }));
+  if (idx !== tooltipSeriesIndex) {
+    const colors = getSeriesPalette();
+    const rows = state.series.map((s, i) => ({
+      name: s.name,
+      color: colors[i % colors.length],
+      value: s.values[idx],
+    }));
 
-  rows.sort((a, b) => {
-    const af = Number.isFinite(a.value);
-    const bf = Number.isFinite(b.value);
-    if (af && bf) return b.value - a.value;
-    if (af) return -1;
-    if (bf) return 1;
-    return a.name.localeCompare(b.name);
-  });
+    rows.sort((a, b) => {
+      const af = Number.isFinite(a.value);
+      const bf = Number.isFinite(b.value);
+      if (af && bf) return b.value - a.value;
+      if (af) return -1;
+      if (bf) return 1;
+      return a.name.localeCompare(b.name);
+    });
 
-  const lines = [`<strong>${fmtTime(timeValue)}</strong>`];
-  rows.forEach((r) => {
-    const valueText = Number.isFinite(r.value) ? `${r.value.toFixed(3)} ${state.yUnit}` : "n/a";
-    lines.push(`<span style=\"color:${r.color}\">${r.name}</span>: ${valueText}`);
-  });
-
-  $tooltip.innerHTML = lines.join("<br>");
+    const lines = [`<strong>${fmtTime(timeValue)}</strong>`];
+    rows.forEach((r) => {
+      const valueText = Number.isFinite(r.value) ? `${r.value.toFixed(3)} ${state.yUnit}` : "n/a";
+      lines.push(`<span style=\"color:${r.color}\">${r.name}</span>: ${valueText}`);
+    });
+    $tooltip.innerHTML = lines.join("<br>");
+    tooltipSeriesIndex = idx;
+  }
   $tooltip.style.display = "block";
 
   const offset = 14;
@@ -1069,6 +1077,17 @@ function showTooltip(x, y) {
   const top = Math.max(8, Math.min(y + offset, rect.height - th - 8));
   $tooltip.style.left = `${left}px`;
   $tooltip.style.top = `${top}px`;
+}
+
+function flushPointerMove() {
+  pointerMoveRAF = 0;
+  if (!pointerMovePending) return;
+  const p = pointerMovePending;
+  pointerMovePending = null;
+  hoverPoint = { x: p.x, y: p.y };
+  if (dragStart) dragCurrentX = p.x;
+  showTooltip(p.x, p.y);
+  redrawOverlay();
 }
 
 let dragStart = null;
@@ -1219,6 +1238,7 @@ async function loadSeries() {
   state.times = nextTimes;
   state.rawSeries = cloneSeries(nextSeries);
   state.series = applySeriesFilter(nextSeries, state.filter);
+  tooltipSeriesIndex = -1;
   state.view.start = null;
   state.view.end = null;
   state.zoomStack = [];
@@ -1359,10 +1379,8 @@ $overlay.addEventListener("mousedown", (e) => {
 });
 
 $overlay.addEventListener("mousemove", (e) => {
-  hoverPoint = { x: e.offsetX, y: e.offsetY };
-  showTooltip(e.offsetX, e.offsetY);
-  if (dragStart) dragCurrentX = e.offsetX;
-  redrawOverlay();
+  pointerMovePending = { x: e.offsetX, y: e.offsetY };
+  if (!pointerMoveRAF) pointerMoveRAF = window.requestAnimationFrame(flushPointerMove);
 });
 
 $overlay.addEventListener("mouseup", (e) => {
@@ -1397,6 +1415,12 @@ $overlay.addEventListener("mouseleave", (e) => {
   if (e.relatedTarget === $tooltip || $tooltip.contains(e.relatedTarget)) return;
   hoverPoint = null;
   $tooltip.style.display = "none";
+  tooltipSeriesIndex = -1;
+  pointerMovePending = null;
+  if (pointerMoveRAF) {
+    window.cancelAnimationFrame(pointerMoveRAF);
+    pointerMoveRAF = 0;
+  }
   if (!dragStart) {
     redrawOverlay();
     return;
