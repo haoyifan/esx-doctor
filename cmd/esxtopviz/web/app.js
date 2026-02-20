@@ -39,6 +39,7 @@ const $tooltip = document.getElementById("tooltip");
 
 const ctx = $chart.getContext("2d");
 const octx = $overlay.getContext("2d");
+let tooltipHovered = false;
 
 function fmtTime(ms) {
   const d = new Date(ms);
@@ -453,6 +454,7 @@ function binarySearchTimes(target) {
 
 function showTooltip(x, y) {
   if (state.times.length === 0) return;
+  if (tooltipHovered) return;
 
   const rect = $chart.getBoundingClientRect();
   const padding = { left: 74, right: 18, top: 20, bottom: 56 };
@@ -699,11 +701,20 @@ $overlay.addEventListener("mouseup", (e) => {
   zoomToRange(tStart, tEnd);
 });
 
-$overlay.addEventListener("mouseleave", () => {
+$overlay.addEventListener("mouseleave", (e) => {
+  if (e.relatedTarget === $tooltip || $tooltip.contains(e.relatedTarget)) return;
   $tooltip.style.display = "none";
   if (!dragStart) return;
   dragStart = null;
   clearSelection();
+});
+
+$tooltip.addEventListener("mouseenter", () => {
+  tooltipHovered = true;
+});
+
+$tooltip.addEventListener("mouseleave", () => {
+  tooltipHovered = false;
 });
 
 window.addEventListener("resize", drawChart);

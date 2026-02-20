@@ -174,7 +174,7 @@ canvas {
 
 .tooltip {
   position: absolute;
-  pointer-events: none;
+  pointer-events: auto;
   z-index: 10;
   background: #0b0f16;
   border: 1px solid #3a455d;
