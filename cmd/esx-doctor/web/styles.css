@@ -194,6 +194,11 @@ body.sidebar-collapsed .sidebar {
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
+  margin-bottom: 8px;
+}
+.label-row .label,
+.label-row .sub-label {
+  margin-bottom: 0;
 }
 .help-tip {
   position: relative;
