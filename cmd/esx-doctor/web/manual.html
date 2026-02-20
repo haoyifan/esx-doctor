@@ -59,12 +59,13 @@
 
     <h2>2. Pick what to graph</h2>
     <ol>
-      <li>Choose a report category (CPU, Memory, NUMA, Power, etc.).</li>
+      <li>Choose a report category (<code>All</code>, CPU, Memory, NUMA, Power, Network, Storage, vSAN, Other).</li>
+      <li>Reports filter the <code>Attributes</code> list to make selection easier.</li>
       <li>Pick one <code>Attribute</code> (for example <code>Vcpu: % Used</code>).</li>
       <li>Select one or more <code>Instances</code>.</li>
-      <li>Click <code>Load</code>.</li>
+      <li>Click <code>Load</code> to draw the chart.</li>
     </ol>
-    <p class="tip">Only one attribute can be graphed at a time, with multiple instances from that attribute.</p>
+    <p class="tip">Only one attribute can be graphed at a time, with multiple instances from that attribute. The selected attribute is shown at the top of the right panel.</p>
 
     <h2>3. Zoom and navigate</h2>
     <ol>
@@ -82,7 +83,16 @@
       <li>Switch between tabs to compare different analyses quickly.</li>
     </ol>
 
-    <h2>4. Inspect values</h2>
+    <h2>4. Filter noisy data (optional)</h2>
+    <ol>
+      <li>Open <code>Advanced Filter</code> in the left panel.</li>
+      <li>Set <code>Min</code> and/or <code>Max</code> values.</li>
+      <li>Click <code>Apply Filter</code>.</li>
+      <li>An instance stays visible if it has any sample within the selected range.</li>
+      <li>Use <code>Reset Filter</code> to clear filter rules.</li>
+    </ol>
+
+    <h2>5. Inspect values</h2>
     <ol>
       <li>Hover over the chart to see timestamp and values.</li>
       <li>Values in tooltip are sorted highest to lowest.</li>
@@ -90,10 +100,16 @@
       <li>You can scroll inside the tooltip if many instances are shown.</li>
     </ol>
 
-    <h2>5. Screenshot</h2>
+    <h2>6. Screenshot</h2>
     <ol>
       <li>Click <code>Screenshot</code> in the chart top bar.</li>
       <li>A PNG of the current graph view is downloaded.</li>
+    </ol>
+
+    <h2>7. Optional settings and help</h2>
+    <ol>
+      <li><code>Appearance</code> and <code>Advanced Filter</code> are collapsed by default.</li>
+      <li>Use <code>?</code> icons across sections to see quick hover help.</li>
     </ol>
 
     <h2>Troubleshooting</h2>
