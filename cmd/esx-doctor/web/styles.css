@@ -559,6 +559,12 @@ canvas {
   justify-content: flex-end;
   margin-top: 14px;
 }
+.modal-actions .btn {
+  min-width: 132px;
+}
+.modal-actions .btn.primary {
+  width: auto;
+}
 
 @media (max-width: 900px) {
   .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }

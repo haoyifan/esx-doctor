@@ -844,8 +844,12 @@ function downloadScreenshot() {
   octx2.font = "12px JetBrains Mono, ui-monospace, monospace";
   octx2.fillText(subtitle, 12, 38);
   const link = document.createElement("a");
-  const safe = (title || "graph").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase();
-  link.download = `esx-doctor-${safe || "graph"}-${Date.now()}.png`;
+  const suggested = `esx-doctor-${(title || "graph").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase() || "graph"}`;
+  const entered = window.prompt("Screenshot file name", suggested);
+  if (entered === null) return;
+  const trimmed = entered.trim();
+  const baseName = trimmed === "" ? suggested : trimmed.replace(/[\\/:*?"<>|]+/g, "-");
+  link.download = `${baseName}.png`;
   link.href = out.toDataURL("image/png");
   link.click();
 }
