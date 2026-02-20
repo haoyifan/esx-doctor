@@ -741,6 +741,16 @@ func main() {
 		_, _ = w.Write(data)
 	})
 
+	mux.HandleFunc("/icon.png", func(w http.ResponseWriter, r *http.Request) {
+		data, err := webFS.ReadFile("web/icon.png")
+		if err != nil {
+			http.Error(w, "icon.png not found", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(data)
+	})
+
 	addr := fmt.Sprintf(":%d", port)
 	log.Printf("esx-doctor listening on %s", addr)
 	log.Printf("open: http://localhost:%d", port)

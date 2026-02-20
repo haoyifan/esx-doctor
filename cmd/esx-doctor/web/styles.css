@@ -132,6 +132,18 @@ body {
   font-weight: 600;
   letter-spacing: 0.3px;
 }
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+  object-fit: cover;
+}
 
 .section { margin-top: 24px; }
 

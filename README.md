@@ -1,4 +1,10 @@
-# esx-doctor
+<p align="center">
+  <img src="icon/icon.png" alt="esx-doctor logo" width="120" />
+</p>
+
+<h1 align="center">esx-doctor</h1>
+
+<p align="center">High-performance visualization for large esxtop CSV exports.</p>
 
 `esx-doctor` is a high-performance viewer for large ESX/esxtop batch CSV exports.
 It is designed for fast startup, low memory usage, and interactive time-series troubleshooting.
@@ -107,9 +113,9 @@ Direct URL:
 2. Select report category.
 3. Select one attribute.
 4. Select one or more instances.
-5. Click `Load Graph`.
+5. Click `Load`.
 6. Drag on chart to zoom in.
-7. Double-click chart or click `Zoom Out` to zoom out.
+7. Double-click chart or click `Reset Zoom` to zoom out.
 8. Use bottom slider to pan current zoom window.
 9. Click `Screenshot` to export the current view.
 10. Use `New Window` to create parallel analysis windows (for example `% Used` and `% Ready`) and switch via window tabs.
