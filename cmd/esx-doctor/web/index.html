@@ -18,7 +18,7 @@
       <div class="section">
         <div class="label-row">
           <div class="label">Dataset</div>
-          <span class="help-tip" title="Choose a local CSV file or a CSV URL, then open it.">?</span>
+          <span class="help-tip" data-help="Choose a local CSV file or a CSV URL, then open it.">?</span>
         </div>
         <div id="filePath" class="mono">Loading...</div>
         <input id="filePicker" type="file" accept=".csv,text/csv" />
@@ -35,7 +35,7 @@
       <div class="section">
         <div class="label-row">
           <div class="label">Reports</div>
-          <span class="help-tip" title="Report buttons narrow the attribute list to a functional group.">?</span>
+          <span class="help-tip" data-help="Report buttons narrow the attribute list to a functional group.">?</span>
         </div>
         <div id="reports" class="row"></div>
       </div>
@@ -45,7 +45,7 @@
           <div>
             <div class="label-row">
               <div class="sub-label">Attributes</div>
-              <span class="help-tip" title="Pick one metric to graph (for example Vcpu: % Used).">?</span>
+              <span class="help-tip" data-help="Pick one metric to graph (for example Vcpu: % Used).">?</span>
             </div>
             <input id="search" type="text" placeholder="Search attributes..." />
             <div id="attributes" class="listbox"></div>
@@ -53,7 +53,7 @@
           <div>
             <div class="label-row">
               <div class="sub-label">Instances</div>
-              <span class="help-tip" title="Select one or more instances within the selected attribute.">?</span>
+              <span class="help-tip" data-help="Select one or more instances within the selected attribute.">?</span>
             </div>
             <input id="instanceSearch" type="text" placeholder="Filter instances..." />
             <div class="controls tight">
@@ -73,7 +73,7 @@
         <summary class="optional-toggle">Appearance</summary>
         <div class="label-row">
           <div class="sub-label">Theme</div>
-          <span class="help-tip" title="Choose the visual color theme.">?</span>
+          <span class="help-tip" data-help="Choose the visual color theme.">?</span>
         </div>
         <select id="themeSelect" aria-label="Theme">
           <option value="midnight">Midnight Classic</option>
@@ -83,13 +83,27 @@
 
       <details class="section optional-panel">
         <summary class="optional-toggle">Advanced Filter</summary>
-        <div class="label-row">
-          <div class="sub-label">Noise Filter</div>
-          <span class="help-tip" title="Hide low-signal instances by value range and active duration percentage.">?</span>
+        <div class="field-row">
+          <div class="field-label-row">
+            <label for="filterMin" class="sub-label">Min Value</label>
+            <span class="help-tip" data-help="Only count samples greater than or equal to this value. Leave empty to disable.">?</span>
+          </div>
+          <input id="filterMin" class="num-input" type="text" placeholder="e.g. 5" />
         </div>
-        <input id="filterMin" type="text" placeholder="Min value (optional)" />
-        <input id="filterMax" type="text" placeholder="Max value (optional)" />
-        <input id="filterActivePct" type="text" placeholder="Min active % (optional, 0-100)" />
+        <div class="field-row">
+          <div class="field-label-row">
+            <label for="filterMax" class="sub-label">Max Value</label>
+            <span class="help-tip" data-help="Only count samples less than or equal to this value. Leave empty to disable.">?</span>
+          </div>
+          <input id="filterMax" class="num-input" type="text" placeholder="e.g. 95" />
+        </div>
+        <div class="field-row">
+          <div class="field-label-row">
+            <label for="filterActivePct" class="sub-label">Min Active %</label>
+            <span class="help-tip" data-help="Keep an instance only if the percent of in-range samples is at least this value (0-100). Leave empty to disable.">?</span>
+          </div>
+          <input id="filterActivePct" class="num-input" type="text" placeholder="0-100" />
+        </div>
         <div class="controls">
           <button id="applyFilter" class="btn ghost">Apply Filter</button>
           <button id="resetFilter" class="btn ghost">Reset Filter</button>
