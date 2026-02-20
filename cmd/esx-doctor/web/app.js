@@ -55,7 +55,7 @@ const $urlInput = document.getElementById("urlInput");
 const $themeSelect = document.getElementById("themeSelect");
 const $filterMin = document.getElementById("filterMin");
 const $filterMax = document.getElementById("filterMax");
-const $toggleSidebar = document.getElementById("toggleSidebar");
+const $sidebarToggleHandle = document.getElementById("sidebarToggleHandle");
 const $status = document.getElementById("status");
 const $selectedAttributeLabel = document.getElementById("selectedAttributeLabel");
 const $windowTabs = document.getElementById("windowTabs");
@@ -122,7 +122,11 @@ function initTheme() {
 
 function applySidebarCollapsed(collapsed) {
   document.body.classList.toggle("sidebar-collapsed", collapsed);
-  if ($toggleSidebar) $toggleSidebar.textContent = collapsed ? "Show Panel" : "Hide Panel";
+  if ($sidebarToggleHandle) {
+    $sidebarToggleHandle.textContent = collapsed ? "›" : "‹";
+    $sidebarToggleHandle.setAttribute("aria-label", collapsed ? "Show side panel" : "Hide side panel");
+    $sidebarToggleHandle.title = collapsed ? "Show side panel" : "Hide side panel";
+  }
   try {
     localStorage.setItem(sidebarStorageKey, collapsed ? "1" : "0");
   } catch (_err) {
@@ -1299,6 +1303,7 @@ window.addEventListener("mouseup", () => {
 });
 
 $splitter.addEventListener("mousedown", (e) => {
+  if (e.target === $sidebarToggleHandle) return;
   if (document.body.classList.contains("sidebar-collapsed")) return;
   splitDrag.active = true;
   e.preventDefault();
@@ -1400,8 +1405,8 @@ if ($themeSelect) {
     applyTheme($themeSelect.value);
   });
 }
-if ($toggleSidebar) {
-  $toggleSidebar.addEventListener("click", () => {
+if ($sidebarToggleHandle) {
+  $sidebarToggleHandle.addEventListener("click", () => {
     applySidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"));
   });
 }

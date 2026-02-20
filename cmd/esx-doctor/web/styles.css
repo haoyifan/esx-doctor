@@ -123,18 +123,36 @@ body {
   border-left: 1px solid var(--border);
   border-right: 1px solid var(--border);
   cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .splitter:hover {
   background: linear-gradient(180deg, var(--splitter-hover-start) 0%, var(--splitter-hover-end) 100%);
 }
-
-body.sidebar-collapsed .app {
-  grid-template-columns: 1fr;
-}
-body.sidebar-collapsed .sidebar {
-  display: none;
+.splitter-toggle {
+  width: 18px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
 }
 body.sidebar-collapsed .splitter {
+  cursor: pointer;
+}
+body.sidebar-collapsed .splitter-toggle {
+  background: var(--panel-2);
+}
+
+body.sidebar-collapsed .app {
+  grid-template-columns: 0 12px 1fr;
+}
+body.sidebar-collapsed .sidebar {
   display: none;
 }
 

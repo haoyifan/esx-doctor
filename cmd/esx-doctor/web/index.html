@@ -103,13 +103,14 @@
         </div>
       </details>
     </aside>
-    <div id="splitter" class="splitter" title="Drag to resize panel"></div>
+    <div id="splitter" class="splitter" title="Drag to resize panel">
+      <button id="sidebarToggleHandle" class="splitter-toggle" aria-label="Hide side panel">‹</button>
+    </div>
 
     <main class="main">
       <div class="topbar">
         <div id="selectedAttributeLabel" class="title">Attribute: -</div>
         <div class="topbar-actions">
-          <button id="toggleSidebar" class="btn ghost">Hide Panel</button>
           <button id="screenshot" class="btn ghost">Screenshot</button>
           <button id="resetZoom" class="btn ghost">Reset Zoom</button>
           <div id="status" class="status">Idle</div>
