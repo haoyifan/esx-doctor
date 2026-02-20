@@ -107,6 +107,7 @@ body {
   grid-template-columns: var(--sidebar-width) 8px 1fr;
   height: 100dvh;
   min-height: 0;
+  transition: grid-template-columns 0.16s ease;
 }
 
 .sidebar {
@@ -125,6 +126,18 @@ body {
 }
 .splitter:hover {
   background: linear-gradient(180deg, var(--splitter-hover-start) 0%, var(--splitter-hover-end) 100%);
+}
+
+body.sidebar-collapsed .app {
+  grid-template-columns: 0 0 1fr;
+}
+body.sidebar-collapsed .sidebar {
+  padding: 0;
+  border-right: 0;
+  overflow: hidden;
+}
+body.sidebar-collapsed .splitter {
+  display: none;
 }
 
 .brand .title {

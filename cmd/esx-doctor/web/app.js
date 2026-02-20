@@ -41,6 +41,7 @@ const themePalettes = {
   "classic-light": ["#0071e3", "#34c759", "#ff9f0a", "#5e5ce6", "#ff375f", "#64d2ff", "#30b0c7"],
 };
 const themeStorageKey = "esxDoctorTheme";
+const sidebarStorageKey = "esxDoctorSidebarCollapsed";
 const defaultTheme = "midnight";
 
 const $search = document.getElementById("search");
@@ -54,6 +55,7 @@ const $urlInput = document.getElementById("urlInput");
 const $themeSelect = document.getElementById("themeSelect");
 const $filterMin = document.getElementById("filterMin");
 const $filterMax = document.getElementById("filterMax");
+const $toggleSidebar = document.getElementById("toggleSidebar");
 const $status = document.getElementById("status");
 const $selectedAttributeLabel = document.getElementById("selectedAttributeLabel");
 const $windowTabs = document.getElementById("windowTabs");
@@ -116,6 +118,27 @@ function initTheme() {
     saved = defaultTheme;
   }
   applyTheme(saved);
+}
+
+function applySidebarCollapsed(collapsed) {
+  document.body.classList.toggle("sidebar-collapsed", collapsed);
+  if ($toggleSidebar) $toggleSidebar.textContent = collapsed ? "Show Panel" : "Hide Panel";
+  try {
+    localStorage.setItem(sidebarStorageKey, collapsed ? "1" : "0");
+  } catch (_err) {
+    // Ignore storage errors.
+  }
+  drawChart();
+}
+
+function initSidebarState() {
+  let collapsed = false;
+  try {
+    collapsed = localStorage.getItem(sidebarStorageKey) === "1";
+  } catch (_err) {
+    collapsed = false;
+  }
+  applySidebarCollapsed(collapsed);
 }
 
 function fmtTime(ms) {
@@ -1276,6 +1299,7 @@ window.addEventListener("mouseup", () => {
 });
 
 $splitter.addEventListener("mousedown", (e) => {
+  if (document.body.classList.contains("sidebar-collapsed")) return;
   splitDrag.active = true;
   e.preventDefault();
   document.body.style.userSelect = "none";
@@ -1376,6 +1400,12 @@ if ($themeSelect) {
     applyTheme($themeSelect.value);
   });
 }
+if ($toggleSidebar) {
+  $toggleSidebar.addEventListener("click", () => {
+    applySidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"));
+  });
+}
 
 initTheme();
+initSidebarState();
 loadMeta().then(() => loadSeries());
