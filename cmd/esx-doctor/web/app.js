@@ -1069,24 +1069,6 @@ $search.addEventListener("input", () => {
   saveCurrentWindowState();
 });
 
-document.getElementById("selectAllAttrs").addEventListener("click", () => {
-  const visible = getVisibleAttributes();
-  if (visible.length === 0) return;
-
-  // Keep single-attribute mode: pick the first visible attribute and select its instances.
-  const attr = visible[0];
-  state.selectedAttribute = attr.key;
-  state.selected.clear();
-  attr.items.forEach((item) => state.selected.add(item.idx));
-  renderAttributes();
-  renderInstances();
-});
-
-document.getElementById("clearAll").addEventListener("click", () => {
-  state.selected.clear();
-  renderInstances();
-});
-
 document.getElementById("selectAllInstances").addEventListener("click", () => {
   const attr = currentAttribute();
   if (!attr) return;
