@@ -5,6 +5,7 @@ const state = {
   attributes: [],
   attributeMap: new Map(),
   reports: [],
+  activeReport: null,
   windows: [],
   activeWindowId: null,
   windowSeq: 1,
@@ -133,6 +134,7 @@ function makeWindowFromCurrent(name) {
     name,
     selected: new Set(state.selected),
     selectedAttribute: state.selectedAttribute,
+    activeReport: state.activeReport,
     times: [...state.times],
     series: cloneSeries(state.series),
     view: { ...state.view },
@@ -149,6 +151,7 @@ function saveCurrentWindowState() {
   if (!w) return;
   w.selected = new Set(state.selected);
   w.selectedAttribute = state.selectedAttribute;
+  w.activeReport = state.activeReport;
   w.times = [...state.times];
   w.series = cloneSeries(state.series);
   w.view = { ...state.view };
@@ -163,6 +166,7 @@ function loadWindowState(w) {
   if (!w) return;
   state.selected = new Set(w.selected);
   state.selectedAttribute = w.selectedAttribute;
+  state.activeReport = w.activeReport || null;
   state.times = [...w.times];
   state.series = cloneSeries(w.series);
   state.view = { ...w.view };
@@ -203,6 +207,7 @@ function switchWindow(id) {
   state.activeWindowId = id;
   loadWindowState(w);
   renderWindowTabs();
+  renderReports();
   renderAttributes();
   renderInstances();
   drawChart();
@@ -227,6 +232,7 @@ function createWindow(cloneCurrent = true) {
       state.activeWindowId = w.id;
       loadWindowState(w);
       renderWindowTabs();
+      renderReports();
       renderAttributes();
       renderInstances();
       drawChart();
@@ -238,6 +244,7 @@ function createWindow(cloneCurrent = true) {
   state.activeWindowId = w.id;
   loadWindowState(w);
   renderWindowTabs();
+  renderReports();
   renderAttributes();
   renderInstances();
   drawChart();
@@ -255,6 +262,7 @@ function closeActiveWindow() {
   state.activeWindowId = next.id;
   loadWindowState(next);
   renderWindowTabs();
+  renderReports();
   renderAttributes();
   renderInstances();
   drawChart();
@@ -351,14 +359,33 @@ function buildReportsModel() {
     { key: "groups", label: "Groups", patterns: [/group cpu/i, /group memory/i] },
   ];
 
-  const reports = [];
-  defs.forEach((def) => {
-    const attrs = state.attributes.filter((a) => def.patterns.some((p) => p.test(a.label)));
-    if (attrs.length > 0) {
-      reports.push({ key: def.key, label: def.label, attrs });
+  const reportMap = new Map(defs.map((d) => [d.key, { key: d.key, label: d.label, attrs: [] }]));
+  const other = { key: "other", label: "Other", attrs: [] };
+
+  state.attributes.forEach((attr) => {
+    let assignedKey = "other";
+    for (const def of defs) {
+      if (def.patterns.some((p) => p.test(attr.label))) {
+        assignedKey = def.key;
+        break;
+      }
+    }
+    attr.reportKey = assignedKey;
+    if (assignedKey === "other") {
+      other.attrs.push(attr);
+    } else {
+      const bucket = reportMap.get(assignedKey);
+      if (bucket) bucket.attrs.push(attr);
     }
   });
+
+  const reports = defs.map((d) => reportMap.get(d.key)).filter((r) => r && r.attrs.length > 0);
+  if (other.attrs.length > 0) reports.push(other);
   state.reports = reports;
+
+  if (!state.activeReport || !reports.some((r) => r.key === state.activeReport)) {
+    state.activeReport = reports.length > 0 ? reports[0].key : null;
+  }
 }
 
 function renderReports() {
@@ -369,6 +396,7 @@ function renderReports() {
     btn.className = "btn ghost";
     btn.textContent = report.label;
     btn.dataset.report = report.key;
+    if (state.activeReport === report.key) btn.classList.add("active");
     btn.addEventListener("click", () => selectReport(report.key));
     frag.appendChild(btn);
   });
@@ -376,9 +404,13 @@ function renderReports() {
 }
 
 function getVisibleAttributes() {
+  let attrs = state.attributes;
+  if (state.activeReport) {
+    attrs = attrs.filter((a) => a.reportKey === state.activeReport);
+  }
   const filter = ($search.value || "").trim().toLowerCase();
-  if (!filter) return state.attributes;
-  return state.attributes.filter((a) => a.label.toLowerCase().includes(filter));
+  if (!filter) return attrs;
+  return attrs.filter((a) => a.label.toLowerCase().includes(filter));
 }
 
 function enforceSingleAttributeSelection() {
@@ -494,19 +526,18 @@ function renderInstances() {
 function selectReport(type) {
   const report = state.reports.find((r) => r.key === type);
   if (!report || report.attrs.length === 0) return;
-  const first = report.attrs[0];
-  if (!first) return;
-
-  state.selectedAttribute = first.key;
-  state.selected.clear();
-  first.items.slice(0, 4).forEach((item) => state.selected.add(item.idx));
+  state.activeReport = report.key;
+  if (!report.attrs.some((a) => a.key === state.selectedAttribute)) {
+    const first = report.attrs[0];
+    if (!first) return;
+    state.selectedAttribute = first.key;
+    state.selected.clear();
+    first.items.slice(0, 4).forEach((item) => state.selected.add(item.idx));
+  }
   renderAttributes();
   renderInstances();
-
-  $reports.querySelectorAll(".btn").forEach((b) => {
-    if (b.dataset.report === type) b.classList.add("active");
-    else b.classList.remove("active");
-  });
+  renderReports();
+  saveCurrentWindowState();
 }
 
 function applyMeta(data) {
@@ -528,6 +559,7 @@ function applyMeta(data) {
   const initialAttr = state.attributes.find((a) => /Cpu Load.*1 Minute Avg/i.test(a.label)) || state.attributes[0];
   if (initialAttr) {
     state.selectedAttribute = initialAttr.key;
+    state.activeReport = initialAttr.reportKey || state.activeReport;
     initialAttr.items.slice(0, 2).forEach((item) => state.selected.add(item.idx));
   }
 
