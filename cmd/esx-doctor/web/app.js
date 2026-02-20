@@ -33,8 +33,6 @@ const palette = [
 const themePalettes = {
   midnight: palette,
   "classic-light": ["#0071e3", "#34c759", "#ff9f0a", "#5e5ce6", "#ff375f", "#64d2ff", "#30b0c7"],
-  "soft-aluminum": ["#3a6ea5", "#4f8bc9", "#65a9d7", "#5fb49c", "#b8865d", "#8c78b8", "#cc7f6f"],
-  "studio-neutral": ["#0a84ff", "#30d158", "#ff9f0a", "#5e5ce6", "#ff453a", "#64d2ff", "#bf5af2"],
 };
 const themeStorageKey = "esxDoctorTheme";
 const defaultTheme = "midnight";

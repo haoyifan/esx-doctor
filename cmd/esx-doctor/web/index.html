@@ -16,13 +16,6 @@
       <div class="section">
         <div class="label">Dataset</div>
         <div id="filePath" class="mono">Loading...</div>
-        <div class="sub-label">Theme</div>
-        <select id="themeSelect" aria-label="Theme">
-          <option value="midnight">Midnight Classic</option>
-          <option value="classic-light">Classic Light</option>
-          <option value="soft-aluminum">Soft Aluminum</option>
-          <option value="studio-neutral">Studio Neutral</option>
-        </select>
         <input id="filePicker" type="file" accept=".csv,text/csv" />
         <div class="controls">
           <button id="openFile" class="btn">Open Selected CSV</button>
@@ -65,6 +58,14 @@
 
       <div class="section">
         <button id="loadSeries" class="btn primary">Load</button>
+      </div>
+
+      <div class="section">
+        <div class="label">Appearance</div>
+        <select id="themeSelect" aria-label="Theme">
+          <option value="midnight">Midnight Classic</option>
+          <option value="classic-light">Classic Light</option>
+        </select>
       </div>
     </aside>
     <div id="splitter" class="splitter" title="Drag to resize panel"></div>
