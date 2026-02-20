@@ -41,6 +41,7 @@ const themePalettes = {
   "classic-light": ["#0071e3", "#34c759", "#ff9f0a", "#5e5ce6", "#ff375f", "#64d2ff", "#30b0c7"],
 };
 const loadSeriesSoftLimit = 10000;
+const tooltipIdleDelayMs = 1000;
 const themeStorageKey = "esxDoctorTheme";
 const sidebarStorageKey = "esxDoctorSidebarCollapsed";
 const defaultTheme = "midnight";
@@ -86,6 +87,8 @@ let dragCurrentX = null;
 let pointerMovePending = null;
 let pointerMoveRAF = 0;
 let tooltipSeriesIndex = -1;
+let tooltipIdleTimer = 0;
+let tooltipIdlePoint = null;
 const panDrag = {
   active: false,
   startX: 0,
@@ -1135,7 +1138,22 @@ function flushPointerMove() {
   pointerMovePending = null;
   hoverPoint = { x: p.x, y: p.y };
   if (dragStart) dragCurrentX = p.x;
-  showTooltip(p.x, p.y);
+  if (tooltipIdleTimer) {
+    window.clearTimeout(tooltipIdleTimer);
+    tooltipIdleTimer = 0;
+  }
+  tooltipIdlePoint = { x: p.x, y: p.y };
+  if (dragStart) {
+    $tooltip.style.display = "none";
+    tooltipSeriesIndex = -1;
+  } else {
+    $tooltip.style.display = "none";
+    tooltipIdleTimer = window.setTimeout(() => {
+      tooltipIdleTimer = 0;
+      if (!tooltipIdlePoint) return;
+      showTooltip(tooltipIdlePoint.x, tooltipIdlePoint.y);
+    }, tooltipIdleDelayMs);
+  }
   redrawOverlay();
 }
 
@@ -1437,6 +1455,13 @@ document.getElementById("resetZoom").addEventListener("click", () => {
 
 $overlay.addEventListener("mousedown", (e) => {
   if (state.times.length === 0) return;
+  if (tooltipIdleTimer) {
+    window.clearTimeout(tooltipIdleTimer);
+    tooltipIdleTimer = 0;
+  }
+  tooltipIdlePoint = null;
+  $tooltip.style.display = "none";
+  tooltipSeriesIndex = -1;
   dragStart = { x: e.offsetX };
   dragCurrentX = e.offsetX;
   hoverPoint = { x: e.offsetX, y: e.offsetY };
@@ -1481,6 +1506,11 @@ $overlay.addEventListener("mouseleave", (e) => {
   hoverPoint = null;
   $tooltip.style.display = "none";
   tooltipSeriesIndex = -1;
+  if (tooltipIdleTimer) {
+    window.clearTimeout(tooltipIdleTimer);
+    tooltipIdleTimer = 0;
+  }
+  tooltipIdlePoint = null;
   pointerMovePending = null;
   if (pointerMoveRAF) {
     window.cancelAnimationFrame(pointerMoveRAF);
