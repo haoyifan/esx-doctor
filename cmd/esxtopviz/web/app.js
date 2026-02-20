@@ -4,6 +4,7 @@ const state = {
   indexMap: new Map(),
   attributes: [],
   attributeMap: new Map(),
+  reports: [],
   selected: new Set(),
   selectedAttribute: null,
   times: [],
@@ -27,6 +28,7 @@ const palette = [
 ];
 
 const $search = document.getElementById("search");
+const $reports = document.getElementById("reports");
 const $attributes = document.getElementById("attributes");
 const $instances = document.getElementById("instances");
 const $filePath = document.getElementById("filePath");
@@ -36,6 +38,9 @@ const $status = document.getElementById("status");
 const $chart = document.getElementById("chart");
 const $overlay = document.getElementById("overlay");
 const $tooltip = document.getElementById("tooltip");
+const $zoomPanWrap = document.getElementById("zoomPanWrap");
+const $zoomPanLabel = document.getElementById("zoomPanLabel");
+const $zoomPan = document.getElementById("zoomPan");
 
 const ctx = $chart.getContext("2d");
 const octx = $overlay.getContext("2d");
@@ -125,6 +130,43 @@ function buildAttributeModel() {
 
   state.attributes = Array.from(state.attributeMap.values()).sort((a, b) => a.label.localeCompare(b.label));
   state.selectedAttribute = state.attributes.length > 0 ? state.attributes[0].key : null;
+  buildReportsModel();
+}
+
+function buildReportsModel() {
+  const defs = [
+    { key: "cpu", label: "CPU", patterns: [/cpu/i, /vcpu/i, /numa node.*processor/i, /% used/i, /% ready/i] },
+    { key: "memory", label: "Memory", patterns: [/memory/i, /swap/i, /memctl/i, /compressed/i] },
+    { key: "network", label: "Network", patterns: [/\bnet/i, /nic/i, /network/i] },
+    { key: "storage", label: "Storage", patterns: [/disk/i, /datastore/i, /storage/i, /latency/i, /iops/i] },
+    { key: "power", label: "Power", patterns: [/power/i, /watts/i] },
+    { key: "numa", label: "NUMA", patterns: [/numa/i] },
+    { key: "vsan", label: "vSAN", patterns: [/vsan/i] },
+    { key: "groups", label: "Groups", patterns: [/group cpu/i, /group memory/i] },
+  ];
+
+  const reports = [];
+  defs.forEach((def) => {
+    const attrs = state.attributes.filter((a) => def.patterns.some((p) => p.test(a.label)));
+    if (attrs.length > 0) {
+      reports.push({ key: def.key, label: def.label, attrs });
+    }
+  });
+  state.reports = reports;
+}
+
+function renderReports() {
+  $reports.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  state.reports.forEach((report) => {
+    const btn = document.createElement("button");
+    btn.className = "btn ghost";
+    btn.textContent = report.label;
+    btn.dataset.report = report.key;
+    btn.addEventListener("click", () => selectReport(report.key));
+    frag.appendChild(btn);
+  });
+  $reports.appendChild(frag);
 }
 
 function getVisibleAttributes() {
@@ -215,15 +257,9 @@ function renderInstances() {
 }
 
 function selectReport(type) {
-  const patterns = {
-    cpu: [/Physical Cpu/i, /Cpu Load/i, /Vcpu:/i, /% Used/i, /% Processor Time/i, /% Util Time/i],
-    memory: [/Memory:/i, /Memctl/i, /Swap/i],
-    io: [/Disk/i, /Storage/i, /IOPS/i, /Latency/i],
-    network: [/Net/i, /NIC/i, /Network/i],
-  };
-
-  const pat = patterns[type] || [];
-  const first = state.attributes.find((a) => pat.some((p) => p.test(a.label)));
+  const report = state.reports.find((r) => r.key === type);
+  if (!report || report.attrs.length === 0) return;
+  const first = report.attrs[0];
   if (!first) return;
 
   state.selectedAttribute = first.key;
@@ -231,6 +267,11 @@ function selectReport(type) {
   first.items.slice(0, 4).forEach((item) => state.selected.add(item.idx));
   renderAttributes();
   renderInstances();
+
+  $reports.querySelectorAll(".btn").forEach((b) => {
+    if (b.dataset.report === type) b.classList.add("active");
+    else b.classList.remove("active");
+  });
 }
 
 function applyMeta(data) {
@@ -260,6 +301,7 @@ function applyMeta(data) {
     initialAttr.items.slice(0, 2).forEach((item) => state.selected.add(item.idx));
   }
 
+  renderReports();
   renderAttributes();
   renderInstances();
 }
@@ -315,6 +357,32 @@ function computeDomain() {
   return { start, end };
 }
 
+function isZoomed() {
+  if (state.times.length < 2) return false;
+  return Number.isFinite(state.view.start) && Number.isFinite(state.view.end);
+}
+
+function updateZoomPanUI() {
+  if (!isZoomed()) {
+    $zoomPanWrap.classList.add("hidden");
+    return;
+  }
+
+  const startIdx = Math.max(0, Math.min(binarySearchTimes(state.view.start), state.times.length - 1));
+  let endIdx = Math.max(0, Math.min(binarySearchTimes(state.view.end), state.times.length - 1));
+  if (state.times[endIdx] > state.view.end && endIdx > 0) endIdx -= 1;
+  if (endIdx <= startIdx) endIdx = Math.min(state.times.length - 1, startIdx + 1);
+
+  const span = Math.max(1, endIdx - startIdx);
+  const maxStart = Math.max(0, state.times.length - 1 - span);
+
+  $zoomPan.max = String(maxStart);
+  $zoomPan.value = String(Math.min(startIdx, maxStart));
+  $zoomPan.dataset.span = String(span);
+  $zoomPanLabel.textContent = `Zoom window: ${fmtTime(state.view.start)} to ${fmtTime(state.view.end)}`;
+  $zoomPanWrap.classList.remove("hidden");
+}
+
 function computeYRange(domain) {
   let min = Infinity;
   let max = -Infinity;
@@ -351,6 +419,7 @@ function drawChart() {
   ctx.clearRect(0, 0, rect.width, rect.height);
 
   if (state.times.length === 0 || state.series.length === 0) {
+    $zoomPanWrap.classList.add("hidden");
     ctx.fillStyle = "#9aa2b2";
     ctx.font = "14px var(--font-sans)";
     ctx.fillText("No data loaded", 24, 32);
@@ -439,6 +508,8 @@ function drawChart() {
 
     ctx.stroke();
   });
+
+  updateZoomPanUI();
 }
 
 function binarySearchTimes(target) {
@@ -551,7 +622,12 @@ function zoomToRange(start, end) {
 }
 
 function zoomOut() {
-  if (state.zoomStack.length === 0) return;
+  if (state.zoomStack.length === 0) {
+    state.view.start = null;
+    state.view.end = null;
+    drawChart();
+    return;
+  }
   const prev = state.zoomStack.pop();
   if (!prev) return;
 
@@ -654,6 +730,16 @@ document.getElementById("openFile").addEventListener("click", () => openPickedFi
 
 document.getElementById("loadSeries").addEventListener("click", () => loadSeries());
 document.getElementById("zoomOut").addEventListener("click", () => zoomOut());
+$zoomPan.addEventListener("input", (e) => {
+  if (state.times.length < 2) return;
+  const span = parseInt($zoomPan.dataset.span || "0", 10);
+  const startIdx = parseInt(e.target.value || "0", 10);
+  if (!Number.isFinite(span) || span < 1) return;
+  const endIdx = Math.min(state.times.length - 1, startIdx + span);
+  state.view.start = state.times[startIdx];
+  state.view.end = state.times[endIdx];
+  drawChart();
+});
 
 document.getElementById("resetZoom").addEventListener("click", () => {
   state.view.start = null;
@@ -661,10 +747,6 @@ document.getElementById("resetZoom").addEventListener("click", () => {
   state.zoomStack = [];
   drawChart();
   setStatus("Zoom reset");
-});
-
-document.querySelectorAll("[data-report]").forEach((btn) => {
-  btn.addEventListener("click", () => selectReport(btn.dataset.report));
 });
 
 $overlay.addEventListener("mousedown", (e) => {
@@ -699,6 +781,11 @@ $overlay.addEventListener("mouseup", (e) => {
   const tStart = domain.start + (left / plotW) * (domain.end - domain.start);
   const tEnd = domain.start + (right / plotW) * (domain.end - domain.start);
   zoomToRange(tStart, tEnd);
+});
+
+$overlay.addEventListener("dblclick", () => {
+  if (!isZoomed()) return;
+  zoomOut();
 });
 
 $overlay.addEventListener("mouseleave", (e) => {

@@ -26,14 +26,20 @@
 
       <div class="section">
         <div class="label">Reports</div>
-        <div class="row">
-          <button class="btn" data-report="cpu">CPU</button>
-          <button class="btn" data-report="memory">Memory</button>
-          <button class="btn" data-report="io">I/O</button>
-          <button class="btn" data-report="network">Network</button>
-        </div>
+        <div id="reports" class="row"></div>
+        <div class="muted">Auto-detected from your CSV counters.</div>
       </div>
 
+      <div class="section">
+        <div class="label">View</div>
+        <div class="controls">
+          <button id="loadSeries" class="btn">Load</button>
+          <button id="zoomOut" class="btn ghost">Zoom Out</button>
+          <button id="resetZoom" class="btn ghost">Reset Zoom</button>
+        </div>
+        <div class="muted">Loads full timestamps by default. Drag on chart to zoom in. Double click to zoom out.</div>
+      </div>
+      
       <div class="section">
         <div class="label">Select Counters</div>
         <input id="search" type="text" placeholder="Filter attributes..." />
@@ -57,15 +63,6 @@
         </div>
       </div>
 
-      <div class="section">
-        <div class="label">View</div>
-        <div class="controls">
-          <button id="loadSeries" class="btn">Load</button>
-          <button id="zoomOut" class="btn ghost">Zoom Out</button>
-          <button id="resetZoom" class="btn ghost">Reset Zoom</button>
-        </div>
-        <div class="muted">Loads full timestamps by default. Drag on chart to zoom in.</div>
-      </div>
     </aside>
 
     <main class="main">
@@ -77,6 +74,10 @@
         <canvas id="chart"></canvas>
         <canvas id="overlay"></canvas>
         <div id="tooltip" class="tooltip"></div>
+      </div>
+      <div id="zoomPanWrap" class="zoom-pan hidden">
+        <div id="zoomPanLabel" class="muted"></div>
+        <input id="zoomPan" type="range" min="0" max="0" step="1" value="0" />
       </div>
     </main>
   </div>
