@@ -41,7 +41,7 @@ const themePalettes = {
   "classic-light": ["#0071e3", "#34c759", "#ff9f0a", "#5e5ce6", "#ff375f", "#64d2ff", "#30b0c7"],
 };
 const loadSeriesSoftLimit = 10000;
-const tooltipIdleDelayMs = 1000;
+const tooltipIdleDelayMs = 250;
 const themeStorageKey = "esxDoctorTheme";
 const sidebarStorageKey = "esxDoctorSidebarCollapsed";
 const defaultTheme = "midnight";
