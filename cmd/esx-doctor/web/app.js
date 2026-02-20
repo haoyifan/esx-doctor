@@ -48,6 +48,7 @@ const $filePicker = document.getElementById("filePicker");
 const $urlInput = document.getElementById("urlInput");
 const $themeSelect = document.getElementById("themeSelect");
 const $status = document.getElementById("status");
+const $selectedAttributeLabel = document.getElementById("selectedAttributeLabel");
 const $windowTabs = document.getElementById("windowTabs");
 const $splitter = document.getElementById("splitter");
 const $chart = document.getElementById("chart");
@@ -318,6 +319,12 @@ function currentAttribute() {
   return state.attributeMap.get(state.selectedAttribute) || null;
 }
 
+function updateSelectedAttributeHeader() {
+  if (!$selectedAttributeLabel) return;
+  const attr = currentAttribute();
+  $selectedAttributeLabel.textContent = `Attribute: ${attr ? attr.label : "-"}`;
+}
+
 function resetDataState() {
   state.selected.clear();
   state.times = [];
@@ -488,6 +495,7 @@ function renderAttributes() {
   });
 
   $attributes.appendChild(frag);
+  updateSelectedAttributeHeader();
 }
 
 function renderInstances() {
