@@ -41,11 +41,19 @@ const $overlay = document.getElementById("overlay");
 const $tooltip = document.getElementById("tooltip");
 const $zoomPanWrap = document.getElementById("zoomPanWrap");
 const $zoomPanLabel = document.getElementById("zoomPanLabel");
-const $zoomPan = document.getElementById("zoomPan");
+const $zoomPanTrack = document.getElementById("zoomPanTrack");
+const $zoomPanWindow = document.getElementById("zoomPanWindow");
 
 const ctx = $chart.getContext("2d");
 const octx = $overlay.getContext("2d");
 let tooltipHovered = false;
+const panDrag = {
+  active: false,
+  startX: 0,
+  startIdx: 0,
+  span: 1,
+  maxStart: 0,
+};
 
 function fmtTime(ms) {
   const d = new Date(ms);
@@ -440,6 +448,7 @@ function updateZoomPanUI() {
     $zoomPanWrap.classList.add("hidden");
     return;
   }
+  $zoomPanWrap.classList.remove("hidden");
 
   const startIdx = Math.max(0, Math.min(binarySearchTimes(state.view.start), state.times.length - 2));
   let span = Number.isInteger(state.panSpan) ? state.panSpan : null;
@@ -452,12 +461,31 @@ function updateZoomPanUI() {
 
   const maxStart = Math.max(0, state.times.length - 1 - span);
 
-  $zoomPan.max = String(Math.max(0, state.times.length - 1));
-  $zoomPan.value = String(Math.min(startIdx, maxStart));
-  $zoomPan.dataset.span = String(span);
-  $zoomPan.dataset.maxStart = String(maxStart);
+  const clampedStart = Math.max(0, Math.min(startIdx, maxStart));
+  const trackW = Math.max(1, $zoomPanTrack.clientWidth);
+  const ratio = (span + 1) / Math.max(1, state.times.length);
+  const minPx = 16;
+  const winW = Math.min(trackW, Math.max(minPx, Math.round(trackW * ratio)));
+  const maxLeft = Math.max(0, trackW - winW);
+  const left = maxStart > 0 ? Math.round((clampedStart / maxStart) * maxLeft) : 0;
+
+  $zoomPanWindow.style.width = `${winW}px`;
+  $zoomPanWindow.style.left = `${left}px`;
+  $zoomPanTrack.dataset.span = String(span);
+  $zoomPanTrack.dataset.maxStart = String(maxStart);
+  $zoomPanTrack.dataset.startIdx = String(clampedStart);
   $zoomPanLabel.textContent = `Zoom window: ${fmtTime(state.view.start)} to ${fmtTime(state.view.end)}`;
-  $zoomPanWrap.classList.remove("hidden");
+}
+
+function applyPanStartIndex(startIdx) {
+  if (state.times.length < 2) return;
+  const span = Number.isInteger(state.panSpan) ? state.panSpan : 1;
+  const maxStart = Math.max(0, state.times.length - 1 - span);
+  const clampedStart = Math.max(0, Math.min(startIdx, maxStart));
+  const endIdx = Math.min(state.times.length - 1, clampedStart + span);
+  state.view.start = state.times[clampedStart];
+  state.view.end = state.times[endIdx];
+  drawChart();
 }
 
 function computeYRange(domain) {
@@ -826,17 +854,45 @@ document.getElementById("openManual").addEventListener("click", () => {
 document.getElementById("loadSeries").addEventListener("click", () => loadSeries());
 document.getElementById("screenshot").addEventListener("click", () => downloadScreenshot());
 document.getElementById("zoomOut").addEventListener("click", () => zoomOut());
-$zoomPan.addEventListener("input", (e) => {
-  if (state.times.length < 2) return;
-  const span = Number.isInteger(state.panSpan) ? state.panSpan : parseInt($zoomPan.dataset.span || "0", 10);
-  const startIdx = parseInt(e.target.value || "0", 10);
-  const maxStart = parseInt($zoomPan.dataset.maxStart || "0", 10);
-  if (!Number.isFinite(span) || span < 1) return;
-  const clampedStart = Math.max(0, Math.min(startIdx, maxStart));
-  const endIdx = Math.min(state.times.length - 1, clampedStart + span);
-  state.view.start = state.times[clampedStart];
-  state.view.end = state.times[endIdx];
-  drawChart();
+$zoomPanWindow.addEventListener("mousedown", (e) => {
+  e.preventDefault();
+  const span = parseInt($zoomPanTrack.dataset.span || "1", 10);
+  const maxStart = parseInt($zoomPanTrack.dataset.maxStart || "0", 10);
+  const startIdx = parseInt($zoomPanTrack.dataset.startIdx || "0", 10);
+  panDrag.active = true;
+  panDrag.startX = e.clientX;
+  panDrag.startIdx = Number.isFinite(startIdx) ? startIdx : 0;
+  panDrag.span = Number.isFinite(span) ? span : 1;
+  panDrag.maxStart = Number.isFinite(maxStart) ? maxStart : 0;
+  $zoomPanWindow.classList.add("dragging");
+});
+
+$zoomPanTrack.addEventListener("mousedown", (e) => {
+  if (e.target === $zoomPanWindow) return;
+  if (state.times.length < 2 || !isZoomed()) return;
+  const rect = $zoomPanTrack.getBoundingClientRect();
+  const span = Number.isInteger(state.panSpan) ? state.panSpan : parseInt($zoomPanTrack.dataset.span || "1", 10);
+  const maxStart = Math.max(0, state.times.length - 1 - span);
+  const clickRatio = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0;
+  const targetStart = Math.round(clickRatio * maxStart);
+  applyPanStartIndex(targetStart);
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (!panDrag.active) return;
+  const rect = $zoomPanTrack.getBoundingClientRect();
+  const winW = Math.max(1, $zoomPanWindow.offsetWidth);
+  const maxLeft = Math.max(1, rect.width - winW);
+  const dx = e.clientX - panDrag.startX;
+  const deltaRatio = dx / maxLeft;
+  const deltaIdx = Math.round(deltaRatio * panDrag.maxStart);
+  applyPanStartIndex(panDrag.startIdx + deltaIdx);
+});
+
+window.addEventListener("mouseup", () => {
+  if (!panDrag.active) return;
+  panDrag.active = false;
+  $zoomPanWindow.classList.remove("dragging");
 });
 
 document.getElementById("resetZoom").addEventListener("click", () => {
