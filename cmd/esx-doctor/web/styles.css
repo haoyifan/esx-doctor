@@ -216,7 +216,7 @@ body.sidebar-collapsed .sidebar {
   top: 50%;
   transform: translateY(-50%);
   min-width: 220px;
-  max-width: 300px;
+  max-width: min(300px, calc(100vw - 32px));
   padding: 8px 10px;
   border-radius: 8px;
   background: var(--tooltip-bg);
@@ -233,10 +233,6 @@ body.sidebar-collapsed .sidebar {
 }
 .help-tip:hover::after {
   opacity: 1;
-}
-.help-tip.edge-right::after {
-  left: auto;
-  right: calc(100% + 8px);
 }
 .optional-panel {
   border: 1px solid var(--border);
