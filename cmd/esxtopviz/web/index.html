@@ -17,27 +17,26 @@
       <div class="section">
         <div class="label">Dataset</div>
         <div id="filePath" class="mono">Loading...</div>
-        <div id="range" class="muted"></div>
         <input id="filePicker" type="file" accept=".csv,text/csv" />
         <div class="controls">
           <button id="openFile" class="btn">Open Selected CSV</button>
+          <button id="openManual" class="btn ghost">User Manual</button>
         </div>
       </div>
 
       <div class="section">
         <div class="label">Reports</div>
         <div id="reports" class="row"></div>
-        <div class="muted">Auto-detected from your CSV counters.</div>
       </div>
 
       <div class="section">
         <div class="label">View</div>
         <div class="controls">
           <button id="loadSeries" class="btn">Load</button>
+          <button id="screenshot" class="btn ghost">Screenshot</button>
           <button id="zoomOut" class="btn ghost">Zoom Out</button>
           <button id="resetZoom" class="btn ghost">Reset Zoom</button>
         </div>
-        <div class="muted">Loads full timestamps by default. Drag on chart to zoom in. Double click to zoom out.</div>
       </div>
       
       <div class="section">

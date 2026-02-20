@@ -572,6 +572,26 @@ func main() {
 		_, _ = w.Write(data)
 	})
 
+	mux.HandleFunc("/manual", func(w http.ResponseWriter, r *http.Request) {
+		data, err := webFS.ReadFile("web/manual.html")
+		if err != nil {
+			http.Error(w, "manual not found", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(data)
+	})
+
+	mux.HandleFunc("/manual.html", func(w http.ResponseWriter, r *http.Request) {
+		data, err := webFS.ReadFile("web/manual.html")
+		if err != nil {
+			http.Error(w, "manual not found", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(data)
+	})
+
 	mux.HandleFunc("/app.js", func(w http.ResponseWriter, r *http.Request) {
 		data, err := webFS.ReadFile("web/app.js")
 		if err != nil {

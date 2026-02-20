@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>esxtopviz User Manual</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #151923;
+      --text: #e6e8ef;
+      --muted: #9aa2b2;
+      --accent: #5dd6c7;
+      --border: #2a3242;
+      --font: "Figtree", "Segoe UI", sans-serif;
+      --mono: "JetBrains Mono", ui-monospace, monospace;
+    }
+    body {
+      margin: 0;
+      padding: 28px;
+      font-family: var(--font);
+      color: var(--text);
+      background: radial-gradient(circle at top left, #1b2130 0%, #0f1115 55%);
+      line-height: 1.45;
+    }
+    .wrap {
+      max-width: 960px;
+      margin: 0 auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+    }
+    h1, h2 { margin: 0 0 10px; }
+    h1 { font-size: 28px; }
+    h2 { font-size: 18px; margin-top: 24px; }
+    p, li { color: var(--muted); }
+    code { font-family: var(--mono); color: #d5f7f2; }
+    .tip {
+      border-left: 3px solid var(--accent);
+      padding-left: 10px;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>esxtopviz User Manual</h1>
+    <p>Interactive viewer for large esxtop/PDH CSV exports.</p>
+
+    <h2>1. Load a CSV</h2>
+    <ol>
+      <li>Click <code>Choose File</code> in the <code>Dataset</code> section.</li>
+      <li>Select a CSV export from your file system.</li>
+      <li>Click <code>Open Selected CSV</code>.</li>
+    </ol>
+
+    <h2>2. Pick what to graph</h2>
+    <ol>
+      <li>Choose a report category (CPU, Memory, NUMA, Power, etc.).</li>
+      <li>Pick one <code>Attribute</code> (for example <code>Vcpu: % Used</code>).</li>
+      <li>Select one or more <code>Instances</code>.</li>
+      <li>Click <code>Load</code>.</li>
+    </ol>
+    <p class="tip">Only one attribute can be graphed at a time, with multiple instances from that attribute.</p>
+
+    <h2>3. Zoom and navigate</h2>
+    <ol>
+      <li>Drag over the graph to zoom in.</li>
+      <li>Double-click the graph to zoom out one level.</li>
+      <li>Use <code>Zoom Out</code> or <code>Reset Zoom</code> in the View section.</li>
+      <li>When zoomed, use the bottom slider to pan the current zoom window across time.</li>
+    </ol>
+
+    <h2>4. Inspect values</h2>
+    <ol>
+      <li>Hover over the chart to see timestamp and values.</li>
+      <li>Values in tooltip are sorted highest to lowest.</li>
+      <li>You can scroll inside the tooltip if many instances are shown.</li>
+    </ol>
+
+    <h2>5. Screenshot</h2>
+    <ol>
+      <li>Click <code>Screenshot</code> in the View section.</li>
+      <li>A PNG of the current graph view is downloaded.</li>
+    </ol>
+
+    <h2>Troubleshooting</h2>
+    <ul>
+      <li>If no lines appear, verify you selected at least one instance and clicked <code>Load</code>.</li>
+      <li>If timeline seems short, confirm your CSV actually spans that time range.</li>
+      <li>If values look unusual, hover tooltip to inspect exact instance values.</li>
+    </ul>
+  </div>
+</body>
+</html>

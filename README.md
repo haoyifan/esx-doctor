@@ -20,9 +20,13 @@ Open `http://localhost:8080` in your browser.
 - Select counters on the left, click **Load**.
 - You can load a different CSV at runtime from the **Dataset** file picker and **Open Selected CSV**.
 - Drag on the chart to zoom into a time range.
+- Double-click the chart to zoom out one level.
+- When zoomed, use the bottom slider to pan the zoom window.
 - Use **Zoom Out** or **Reset Zoom** to navigate back.
 - Hover to inspect values.
+- Click **Screenshot** to download the current graph view as PNG.
 - Use report buttons to quickly select related counters.
+- Open **User Manual** from the Dataset section for guided usage.
 
 ## Notes
 

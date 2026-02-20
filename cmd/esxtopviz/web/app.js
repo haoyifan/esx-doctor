@@ -12,6 +12,7 @@ const state = {
   range: { start: null, end: null },
   view: { start: null, end: null },
   zoomStack: [],
+  panSpan: null,
   file: "",
   rows: 0,
   yUnit: "value",
@@ -32,7 +33,6 @@ const $reports = document.getElementById("reports");
 const $attributes = document.getElementById("attributes");
 const $instances = document.getElementById("instances");
 const $filePath = document.getElementById("filePath");
-const $range = document.getElementById("range");
 const $filePicker = document.getElementById("filePicker");
 const $status = document.getElementById("status");
 const $chart = document.getElementById("chart");
@@ -112,6 +112,7 @@ function resetDataState() {
   state.view.start = null;
   state.view.end = null;
   state.zoomStack = [];
+  state.panSpan = null;
   drawChart();
 }
 
@@ -289,11 +290,6 @@ function applyMeta(data) {
   resetDataState();
 
   $filePath.textContent = state.file;
-  if (state.range.start && state.range.end) {
-    $range.textContent = `${fmtTime(state.range.start)} to ${fmtTime(state.range.end)} (${state.rows.toLocaleString()} rows)`;
-  } else {
-    $range.textContent = "";
-  }
 
   const initialAttr = state.attributes.find((a) => /Cpu Load.*1 Minute Avg/i.test(a.label)) || state.attributes[0];
   if (initialAttr) {
@@ -337,6 +333,22 @@ async function openPickedFile() {
   await loadSeries();
 }
 
+function downloadScreenshot() {
+  if ($chart.width < 2 || $chart.height < 2) {
+    setStatus("Nothing to screenshot yet.");
+    return;
+  }
+  const out = document.createElement("canvas");
+  out.width = $chart.width;
+  out.height = $chart.height;
+  const octx2 = out.getContext("2d");
+  octx2.drawImage($chart, 0, 0);
+  const link = document.createElement("a");
+  link.download = `esxtopviz-${Date.now()}.png`;
+  link.href = out.toDataURL("image/png");
+  link.click();
+}
+
 function resizeCanvas() {
   const rect = $chart.getBoundingClientRect();
   const ratio = window.devicePixelRatio || 1;
@@ -368,12 +380,15 @@ function updateZoomPanUI() {
     return;
   }
 
-  const startIdx = Math.max(0, Math.min(binarySearchTimes(state.view.start), state.times.length - 1));
-  let endIdx = Math.max(0, Math.min(binarySearchTimes(state.view.end), state.times.length - 1));
-  if (state.times[endIdx] > state.view.end && endIdx > 0) endIdx -= 1;
-  if (endIdx <= startIdx) endIdx = Math.min(state.times.length - 1, startIdx + 1);
+  const startIdx = Math.max(0, Math.min(binarySearchTimes(state.view.start), state.times.length - 2));
+  let span = Number.isInteger(state.panSpan) ? state.panSpan : null;
+  if (span === null || span < 1) {
+    let endIdx = Math.max(0, Math.min(binarySearchTimes(state.view.end), state.times.length - 1));
+    if (state.times[endIdx] > state.view.end && endIdx > 0) endIdx -= 1;
+    span = Math.max(1, endIdx - startIdx);
+    state.panSpan = span;
+  }
 
-  const span = Math.max(1, endIdx - startIdx);
   const maxStart = Math.max(0, state.times.length - 1 - span);
 
   $zoomPan.max = String(maxStart);
@@ -599,7 +614,7 @@ function zoomToRange(start, end) {
   if (state.times.length < 2) return;
 
   const domain = computeDomain();
-  if (domain) state.zoomStack.push({ start: domain.start, end: domain.end });
+  if (domain) state.zoomStack.push({ start: domain.start, end: domain.end, span: state.panSpan });
 
   const clampedStart = Math.max(start, state.range.start || start);
   const clampedEnd = Math.min(end, state.range.end || end);
@@ -616,6 +631,7 @@ function zoomToRange(start, end) {
 
   state.view.start = state.times[iStart];
   state.view.end = state.times[iEnd];
+  state.panSpan = iEnd - iStart;
 
   drawChart();
   setStatus(`Zoom ${fmtTime(state.view.start)} to ${fmtTime(state.view.end)}`);
@@ -625,6 +641,7 @@ function zoomOut() {
   if (state.zoomStack.length === 0) {
     state.view.start = null;
     state.view.end = null;
+    state.panSpan = null;
     drawChart();
     return;
   }
@@ -633,10 +650,12 @@ function zoomOut() {
 
   state.view.start = prev.start;
   state.view.end = prev.end;
+  state.panSpan = Number.isInteger(prev.span) ? prev.span : null;
 
   if (state.view.start === state.times[0] && state.view.end === state.times[state.times.length - 1]) {
     state.view.start = null;
     state.view.end = null;
+    state.panSpan = null;
   }
 
   drawChart();
@@ -678,6 +697,7 @@ async function loadSeries() {
   state.view.start = null;
   state.view.end = null;
   state.zoomStack = [];
+  state.panSpan = null;
 
   drawChart();
   setStatus(`Loaded ${state.times.length.toLocaleString()} timestamps, ${state.series.length} series`);
@@ -727,16 +747,21 @@ document.getElementById("clearInstances").addEventListener("click", () => {
 });
 
 document.getElementById("openFile").addEventListener("click", () => openPickedFile());
+document.getElementById("openManual").addEventListener("click", () => {
+  window.open("/manual", "_blank", "noopener,noreferrer");
+});
 
 document.getElementById("loadSeries").addEventListener("click", () => loadSeries());
+document.getElementById("screenshot").addEventListener("click", () => downloadScreenshot());
 document.getElementById("zoomOut").addEventListener("click", () => zoomOut());
 $zoomPan.addEventListener("input", (e) => {
   if (state.times.length < 2) return;
-  const span = parseInt($zoomPan.dataset.span || "0", 10);
+  const span = Number.isInteger(state.panSpan) ? state.panSpan : parseInt($zoomPan.dataset.span || "0", 10);
   const startIdx = parseInt(e.target.value || "0", 10);
   if (!Number.isFinite(span) || span < 1) return;
-  const endIdx = Math.min(state.times.length - 1, startIdx + span);
-  state.view.start = state.times[startIdx];
+  const clampedStart = Math.max(0, Math.min(startIdx, state.times.length - 1 - span));
+  const endIdx = Math.min(state.times.length - 1, clampedStart + span);
+  state.view.start = state.times[clampedStart];
   state.view.end = state.times[endIdx];
   drawChart();
 });
@@ -745,6 +770,7 @@ document.getElementById("resetZoom").addEventListener("click", () => {
   state.view.start = null;
   state.view.end = null;
   state.zoomStack = [];
+  state.panSpan = null;
   drawChart();
   setStatus("Zoom reset");
 });
