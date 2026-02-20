@@ -129,12 +129,10 @@ body {
 }
 
 body.sidebar-collapsed .app {
-  grid-template-columns: 0 0 1fr;
+  grid-template-columns: 1fr;
 }
 body.sidebar-collapsed .sidebar {
-  padding: 0;
-  border-right: 0;
-  overflow: hidden;
+  display: none;
 }
 body.sidebar-collapsed .splitter {
   display: none;
