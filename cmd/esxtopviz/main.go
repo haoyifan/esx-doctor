@@ -44,8 +44,7 @@ type DataFile struct {
 }
 
 const (
-	indexStride   = int64(1000)
-	defaultMaxPts = 2000
+	indexStride = int64(1000)
 )
 
 var timeLayouts = []string{
@@ -250,13 +249,9 @@ func (df *DataFile) extractSeries(cols []int, start, end time.Time, maxPoints in
 		resp.Series[i] = SeriesPayload{Name: name}
 	}
 
-	if maxPoints <= 0 {
-		maxPoints = defaultMaxPts
-	}
-
 	estimated := df.estimateRows(start, end)
 	step := int64(1)
-	if estimated > int64(maxPoints) {
+	if maxPoints > 0 && estimated > int64(maxPoints) {
 		step = estimated / int64(maxPoints)
 		if step < 1 {
 			step = 1
@@ -422,7 +417,7 @@ func main() {
 
 		start := parseTimeParam("start")
 		end := parseTimeParam("end")
-		maxPoints := defaultMaxPts
+		maxPoints := 0
 		if mp := r.URL.Query().Get("maxPoints"); mp != "" {
 			if v, err := strconv.Atoi(mp); err == nil {
 				maxPoints = v

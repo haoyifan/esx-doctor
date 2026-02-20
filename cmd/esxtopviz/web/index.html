@@ -43,6 +43,14 @@
             <div id="attributes" class="listbox"></div>
           </div>
           <div>
+            <div class="sub-label">Groups</div>
+            <div class="controls tight">
+              <button id="selectAllGroups" class="btn ghost">All Groups</button>
+              <button id="clearGroups" class="btn ghost">Clear Groups</button>
+            </div>
+            <div id="groups" class="listbox"></div>
+          </div>
+          <div>
             <div class="sub-label">Instances</div>
             <div class="controls tight">
               <button id="selectAllInstances" class="btn ghost">All Instances</button>
@@ -57,9 +65,10 @@
         <div class="label">View</div>
         <div class="controls">
           <button id="loadSeries" class="btn">Load</button>
+          <button id="zoomOut" class="btn ghost">Zoom Out</button>
           <button id="resetZoom" class="btn ghost">Reset Zoom</button>
         </div>
-        <div class="muted">Drag on chart to zoom. Hover to inspect values.</div>
+        <div class="muted">Loads full timestamps by default. Drag on chart to zoom in.</div>
       </div>
     </aside>
 

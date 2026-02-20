@@ -1,14 +1,17 @@
 const state = {
   columns: [],
   parsedColumns: [],
+  indexMap: new Map(),
   attributes: [],
   attributeMap: new Map(),
   selected: new Set(),
   selectedAttribute: null,
+  selectedGroupByAttribute: new Map(),
   times: [],
   series: [],
   range: { start: null, end: null },
   view: { start: null, end: null },
+  zoomStack: [],
   file: "",
   rows: 0,
   yUnit: "value",
@@ -26,6 +29,7 @@ const palette = [
 
 const $search = document.getElementById("search");
 const $attributes = document.getElementById("attributes");
+const $groups = document.getElementById("groups");
 const $instances = document.getElementById("instances");
 const $filePath = document.getElementById("filePath");
 const $range = document.getElementById("range");
@@ -52,6 +56,7 @@ function parsePDHColumn(raw, idx) {
     raw,
     object: "Other",
     instance: "Global",
+    group: "All",
     counter: raw,
     attributeKey: `Other|${raw}`,
     attributeLabel: raw,
@@ -68,6 +73,15 @@ function parsePDHColumn(raw, idx) {
   const instanceMatch = objectPart.match(/\((.*)\)/);
   const instance = instanceMatch ? instanceMatch[1] : "Global";
 
+  let group = "All";
+  if (instance.includes(":")) {
+    const t = instance.split(":")[0].trim();
+    group = t || "All";
+  } else if (instance.includes("/")) {
+    const t = instance.split("/")[0].trim();
+    group = t || "All";
+  }
+
   let unit = "value";
   if (/^%/.test(counter) || /percent/i.test(counter)) unit = "%";
   else if (/MBytes/i.test(counter)) unit = "MBytes";
@@ -75,7 +89,7 @@ function parsePDHColumn(raw, idx) {
   else if (/Watts/i.test(counter)) unit = "Watts";
   else if (/MHz/i.test(counter)) unit = "MHz";
   else if (/\/sec/i.test(counter)) unit = "/sec";
-  else if (/Latency|ms/i.test(counter)) unit = "ms";
+  else if (/Latency|\bms\b/i.test(counter)) unit = "ms";
 
   const attributeKey = `${objectBase}|${counter}`;
   const attributeLabel = `${objectBase}: ${counter}`;
@@ -85,6 +99,7 @@ function parsePDHColumn(raw, idx) {
     raw,
     object: objectBase,
     instance,
+    group,
     counter,
     attributeKey,
     attributeLabel,
@@ -94,14 +109,25 @@ function parsePDHColumn(raw, idx) {
 
 function buildAttributeModel() {
   state.attributeMap = new Map();
+
   state.parsedColumns.forEach((item) => {
     const entry = state.attributeMap.get(item.attributeKey) || {
       key: item.attributeKey,
       label: item.attributeLabel,
       unit: item.unit,
       items: [],
+      groups: new Map(),
     };
+
     entry.items.push(item);
+    const grp = entry.groups.get(item.group) || {
+      key: item.group,
+      label: item.group,
+      items: [],
+    };
+    grp.items.push(item);
+    entry.groups.set(item.group, grp);
+
     state.attributeMap.set(item.attributeKey, entry);
   });
 
@@ -112,6 +138,13 @@ function buildAttributeModel() {
   if (!state.selectedAttribute && state.attributes.length > 0) {
     state.selectedAttribute = state.attributes[0].key;
   }
+
+  state.attributes.forEach((attr) => {
+    if (!state.selectedGroupByAttribute.has(attr.key)) {
+      const firstGroup = Array.from(attr.groups.keys()).sort()[0] || "All";
+      state.selectedGroupByAttribute.set(attr.key, firstGroup);
+    }
+  });
 }
 
 function getVisibleAttributes() {
@@ -120,10 +153,23 @@ function getVisibleAttributes() {
   return state.attributes.filter((a) => a.label.toLowerCase().includes(filter));
 }
 
+function currentAttribute() {
+  return state.attributeMap.get(state.selectedAttribute) || null;
+}
+
+function selectedGroupForAttribute(attr) {
+  if (!attr) return null;
+  const saved = state.selectedGroupByAttribute.get(attr.key);
+  if (saved && attr.groups.has(saved)) return saved;
+  const fallback = Array.from(attr.groups.keys()).sort()[0] || null;
+  if (fallback) state.selectedGroupByAttribute.set(attr.key, fallback);
+  return fallback;
+}
+
 function renderAttributes() {
   const visible = getVisibleAttributes();
-  const frag = document.createDocumentFragment();
   $attributes.innerHTML = "";
+  const frag = document.createDocumentFragment();
 
   visible.forEach((attr) => {
     const label = document.createElement("label");
@@ -136,6 +182,7 @@ function renderAttributes() {
     radio.addEventListener("change", () => {
       state.selectedAttribute = attr.key;
       renderAttributes();
+      renderGroups();
       renderInstances();
     });
 
@@ -154,12 +201,54 @@ function renderAttributes() {
   $attributes.appendChild(frag);
 }
 
+function renderGroups() {
+  const attr = currentAttribute();
+  $groups.innerHTML = "";
+  if (!attr) return;
+
+  const selectedGroup = selectedGroupForAttribute(attr);
+  const groups = Array.from(attr.groups.values()).sort((a, b) => a.label.localeCompare(b.label));
+  const frag = document.createDocumentFragment();
+
+  groups.forEach((group) => {
+    const label = document.createElement("label");
+    if (selectedGroup === group.key) label.classList.add("active");
+
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "group";
+    radio.checked = selectedGroup === group.key;
+    radio.addEventListener("change", () => {
+      state.selectedGroupByAttribute.set(attr.key, group.key);
+      renderGroups();
+      renderInstances();
+    });
+
+    const name = document.createElement("div");
+    name.textContent = group.label;
+
+    const count = document.createElement("span");
+    count.textContent = `${group.items.length}`;
+
+    label.appendChild(radio);
+    label.appendChild(name);
+    label.appendChild(count);
+    frag.appendChild(label);
+  });
+
+  $groups.appendChild(frag);
+}
+
 function renderInstances() {
-  const attr = state.attributeMap.get(state.selectedAttribute);
+  const attr = currentAttribute();
   $instances.innerHTML = "";
   if (!attr) return;
 
-  const sorted = [...attr.items].sort((a, b) => a.instance.localeCompare(b.instance));
+  const groupKey = selectedGroupForAttribute(attr);
+  const group = groupKey ? attr.groups.get(groupKey) : null;
+  const items = group ? group.items : attr.items;
+  const sorted = [...items].sort((a, b) => a.instance.localeCompare(b.instance));
+
   const frag = document.createDocumentFragment();
   sorted.forEach((item) => {
     const label = document.createElement("label");
@@ -197,11 +286,14 @@ function selectReport(type) {
 
   const pat = patterns[type] || [];
   const first = state.attributes.find((a) => pat.some((p) => p.test(a.label)));
-  if (first) {
-    state.selectedAttribute = first.key;
-    renderAttributes();
-    renderInstances();
-  }
+  if (!first) return;
+
+  state.selectedAttribute = first.key;
+  const defaultGroup = selectedGroupForAttribute(first);
+  if (defaultGroup) state.selectedGroupByAttribute.set(first.key, defaultGroup);
+  renderAttributes();
+  renderGroups();
+  renderInstances();
 }
 
 async function loadMeta() {
@@ -216,24 +308,26 @@ async function loadMeta() {
   state.parsedColumns = state.columns
     .map((col, idx) => parsePDHColumn(col, idx))
     .filter((item) => item.idx > 0);
+  state.indexMap = new Map(state.parsedColumns.map((item) => [item.idx, item]));
 
   buildAttributeModel();
-  renderAttributes();
-  renderInstances();
 
   $filePath.textContent = state.file;
   if (state.range.start && state.range.end) {
     $range.textContent = `${fmtTime(state.range.start)} to ${fmtTime(state.range.end)} (${state.rows.toLocaleString()} rows)`;
   }
 
-  // Initial selection for quick first render.
   const initialAttr = state.attributes.find((a) => /Cpu Load.*1 Minute Avg/i.test(a.label)) || state.attributes[0];
   if (initialAttr) {
     state.selectedAttribute = initialAttr.key;
-    initialAttr.items.slice(0, 2).forEach((item) => state.selected.add(item.idx));
-    renderAttributes();
-    renderInstances();
+    const firstGroup = selectedGroupForAttribute(initialAttr);
+    const group = firstGroup ? initialAttr.groups.get(firstGroup) : null;
+    (group ? group.items : initialAttr.items).slice(0, 2).forEach((item) => state.selected.add(item.idx));
   }
+
+  renderAttributes();
+  renderGroups();
+  renderInstances();
 }
 
 function resizeCanvas() {
@@ -282,9 +376,14 @@ function computeYRange(domain) {
 }
 
 function resolveYUnit() {
-  const attr = state.attributeMap.get(state.selectedAttribute);
-  if (!attr) return "value";
-  return attr.unit || "value";
+  const units = new Set();
+  state.selected.forEach((idx) => {
+    const item = state.indexMap.get(idx);
+    if (item) units.add(item.unit || "value");
+  });
+  if (units.size === 0) return "value";
+  if (units.size === 1) return Array.from(units)[0];
+  return "mixed";
 }
 
 function drawChart() {
@@ -396,6 +495,7 @@ function binarySearchTimes(target) {
 
 function showTooltip(x, y) {
   if (state.times.length === 0) return;
+
   const rect = $chart.getBoundingClientRect();
   const padding = { left: 74, right: 18, top: 20, bottom: 56 };
   const plotW = rect.width - padding.left - padding.right;
@@ -411,11 +511,28 @@ function showTooltip(x, y) {
   const idx = Math.min(binarySearchTimes(t), state.times.length - 1);
   const timeValue = state.times[idx];
 
-  const lines = [`<strong>${fmtTime(timeValue)}</strong>`];
-  state.series.forEach((s, i) => {
+  const rows = state.series.map((s, i) => {
     const v = s.values[idx];
-    const text = Number.isFinite(v) ? `${v.toFixed(3)} ${state.yUnit}` : "n/a";
-    lines.push(`<span style=\"color:${palette[i % palette.length]}\">${s.name}</span>: ${text}`);
+    return {
+      name: s.name,
+      color: palette[i % palette.length],
+      value: v,
+    };
+  });
+
+  rows.sort((a, b) => {
+    const af = Number.isFinite(a.value);
+    const bf = Number.isFinite(b.value);
+    if (af && bf) return b.value - a.value;
+    if (af) return -1;
+    if (bf) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  const lines = [`<strong>${fmtTime(timeValue)}</strong>`];
+  rows.forEach((r) => {
+    const valueText = Number.isFinite(r.value) ? `${r.value.toFixed(3)} ${state.yUnit}` : "n/a";
+    lines.push(`<span style=\"color:${r.color}\">${r.name}</span>: ${valueText}`);
   });
 
   $tooltip.innerHTML = lines.join("<br>");
@@ -443,25 +560,48 @@ function clearSelection() {
   octx.clearRect(0, 0, rect.width, rect.height);
 }
 
-async function loadSeries(rangeOverride = null) {
+function zoomToRange(start, end) {
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+
+  const domain = computeDomain();
+  if (domain) {
+    state.zoomStack.push({ start: domain.start, end: domain.end });
+  }
+
+  state.view.start = Math.max(start, state.range.start || start);
+  state.view.end = Math.min(end, state.range.end || end);
+  drawChart();
+  setStatus(`Zoom ${fmtTime(state.view.start)} to ${fmtTime(state.view.end)}`);
+}
+
+function zoomOut() {
+  if (state.zoomStack.length === 0) return;
+  const prev = state.zoomStack.pop();
+  if (!prev) return;
+
+  if (prev.start === state.times[0] && prev.end === state.times[state.times.length - 1]) {
+    state.view.start = null;
+    state.view.end = null;
+  } else {
+    state.view.start = prev.start;
+    state.view.end = prev.end;
+  }
+
+  drawChart();
+  setStatus("Zoomed out");
+}
+
+async function loadSeries() {
   const cols = Array.from(state.selected.values()).sort((a, b) => a - b);
   if (cols.length === 0) {
     setStatus("Select at least one instance.");
     return;
   }
 
-  setStatus("Loading...");
+  setStatus("Loading full timestamps...");
   const params = new URLSearchParams();
   cols.forEach((c) => params.append("col", c));
-  params.append("maxPoints", "2000");
-
-  if (rangeOverride) {
-    params.append("start", String(Math.floor(rangeOverride.start)));
-    params.append("end", String(Math.floor(rangeOverride.end)));
-  } else if (state.view.start && state.view.end) {
-    params.append("start", String(state.view.start));
-    params.append("end", String(state.view.end));
-  }
+  params.append("maxPoints", "0");
 
   const res = await fetch(`/api/series?${params.toString()}`);
   const data = await res.json();
@@ -472,16 +612,12 @@ async function loadSeries(rangeOverride = null) {
 
   state.times = data.times || [];
   state.series = data.series || [];
-  if (rangeOverride) {
-    state.view.start = rangeOverride.start;
-    state.view.end = rangeOverride.end;
-  } else {
-    state.view.start = null;
-    state.view.end = null;
-  }
+  state.view.start = null;
+  state.view.end = null;
+  state.zoomStack = [];
 
   drawChart();
-  setStatus(`Loaded ${state.times.length.toLocaleString()} points, ${state.series.length} series`);
+  setStatus(`Loaded ${state.times.length.toLocaleString()} timestamps, ${state.series.length} series`);
 }
 
 $search.addEventListener("input", () => {
@@ -490,6 +626,7 @@ $search.addEventListener("input", () => {
     state.selectedAttribute = visible.length > 0 ? visible[0].key : null;
   }
   renderAttributes();
+  renderGroups();
   renderInstances();
 });
 
@@ -506,26 +643,47 @@ document.getElementById("clearAll").addEventListener("click", () => {
   renderInstances();
 });
 
-document.getElementById("selectAllInstances").addEventListener("click", () => {
-  const attr = state.attributeMap.get(state.selectedAttribute);
+document.getElementById("selectAllGroups").addEventListener("click", () => {
+  const attr = currentAttribute();
   if (!attr) return;
   attr.items.forEach((item) => state.selected.add(item.idx));
   renderInstances();
 });
 
-document.getElementById("clearInstances").addEventListener("click", () => {
-  const attr = state.attributeMap.get(state.selectedAttribute);
+document.getElementById("clearGroups").addEventListener("click", () => {
+  const attr = currentAttribute();
   if (!attr) return;
   attr.items.forEach((item) => state.selected.delete(item.idx));
   renderInstances();
 });
 
+document.getElementById("selectAllInstances").addEventListener("click", () => {
+  const attr = currentAttribute();
+  if (!attr) return;
+  const groupKey = selectedGroupForAttribute(attr);
+  const group = groupKey ? attr.groups.get(groupKey) : null;
+  (group ? group.items : attr.items).forEach((item) => state.selected.add(item.idx));
+  renderInstances();
+});
+
+document.getElementById("clearInstances").addEventListener("click", () => {
+  const attr = currentAttribute();
+  if (!attr) return;
+  const groupKey = selectedGroupForAttribute(attr);
+  const group = groupKey ? attr.groups.get(groupKey) : null;
+  (group ? group.items : attr.items).forEach((item) => state.selected.delete(item.idx));
+  renderInstances();
+});
+
 document.getElementById("loadSeries").addEventListener("click", () => loadSeries());
+document.getElementById("zoomOut").addEventListener("click", () => zoomOut());
 
 document.getElementById("resetZoom").addEventListener("click", () => {
   state.view.start = null;
   state.view.end = null;
-  loadSeries();
+  state.zoomStack = [];
+  drawChart();
+  setStatus("Zoom reset");
 });
 
 document.querySelectorAll("[data-report]").forEach((btn) => {
@@ -545,6 +703,7 @@ $overlay.addEventListener("mousemove", (e) => {
 
 $overlay.addEventListener("mouseup", (e) => {
   if (!dragStart) return;
+
   const rect = $chart.getBoundingClientRect();
   const startX = dragStart.x;
   const endX = e.offsetX;
@@ -553,18 +712,23 @@ $overlay.addEventListener("mouseup", (e) => {
 
   const padding = { left: 74, right: 18 };
   const plotW = rect.width - padding.left - padding.right;
-  const left = Math.min(startX, endX) - padding.left;
-  const right = Math.max(startX, endX) - padding.left;
+  const left = Math.max(0, Math.min(startX, endX) - padding.left);
+  const right = Math.min(plotW, Math.max(startX, endX) - padding.left);
   if (right - left < plotW * 0.02) return;
 
   const domain = computeDomain();
+  if (!domain) return;
+
   const tStart = domain.start + (left / plotW) * (domain.end - domain.start);
   const tEnd = domain.start + (right / plotW) * (domain.end - domain.start);
+  zoomToRange(tStart, tEnd);
+});
 
-  loadSeries({
-    start: Math.max(tStart, state.range.start || tStart),
-    end: Math.min(tEnd, state.range.end || tEnd),
-  });
+$overlay.addEventListener("mouseleave", () => {
+  $tooltip.style.display = "none";
+  if (!dragStart) return;
+  dragStart = null;
+  clearSelection();
 });
 
 window.addEventListener("resize", drawChart);

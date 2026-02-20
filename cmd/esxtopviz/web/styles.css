@@ -109,9 +109,9 @@ input[type="text"] {
 
 .listbox {
   margin-top: 6px;
-  height: 17vh;
+  height: 14vh;
   min-height: 110px;
-  max-height: 180px;
+  max-height: 170px;
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 10px;
