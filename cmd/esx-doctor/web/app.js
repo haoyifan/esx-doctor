@@ -349,11 +349,11 @@ function buildAttributeModel() {
 
 function buildReportsModel() {
   const defs = [
+    { key: "power", label: "Power", patterns: [/power/i, /watts/i, /pstate/i, /cstate/i] },
     { key: "cpu", label: "CPU", patterns: [/cpu/i, /vcpu/i, /numa node.*processor/i, /% used/i, /% ready/i] },
     { key: "memory", label: "Memory", patterns: [/memory/i, /swap/i, /memctl/i, /compressed/i] },
     { key: "network", label: "Network", patterns: [/\bnet/i, /nic/i, /network/i] },
     { key: "storage", label: "Storage", patterns: [/disk/i, /datastore/i, /storage/i, /latency/i, /iops/i] },
-    { key: "power", label: "Power", patterns: [/power/i, /watts/i] },
     { key: "numa", label: "NUMA", patterns: [/numa/i] },
     { key: "vsan", label: "vSAN", patterns: [/vsan/i] },
     { key: "groups", label: "Groups", patterns: [/group cpu/i, /group memory/i] },
@@ -381,10 +381,11 @@ function buildReportsModel() {
 
   const reports = defs.map((d) => reportMap.get(d.key)).filter((r) => r && r.attrs.length > 0);
   if (other.attrs.length > 0) reports.push(other);
-  state.reports = reports;
+  const all = { key: "all", label: "All", attrs: [...state.attributes] };
+  state.reports = [all, ...reports];
 
-  if (!state.activeReport || !reports.some((r) => r.key === state.activeReport)) {
-    state.activeReport = reports.length > 0 ? reports[0].key : null;
+  if (!state.activeReport || !state.reports.some((r) => r.key === state.activeReport)) {
+    state.activeReport = state.reports.length > 0 ? state.reports[0].key : null;
   }
 }
 
@@ -405,7 +406,7 @@ function renderReports() {
 
 function getVisibleAttributes() {
   let attrs = state.attributes;
-  if (state.activeReport) {
+  if (state.activeReport && state.activeReport !== "all") {
     attrs = attrs.filter((a) => a.reportKey === state.activeReport);
   }
   const filter = ($search.value || "").trim().toLowerCase();
