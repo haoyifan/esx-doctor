@@ -492,8 +492,14 @@ function showTooltip(x, y) {
 
   $tooltip.innerHTML = lines.join("<br>");
   $tooltip.style.display = "block";
-  $tooltip.style.left = `${x + 14}px`;
-  $tooltip.style.top = `${y + 14}px`;
+
+  const offset = 14;
+  const tw = $tooltip.offsetWidth || 260;
+  const th = $tooltip.offsetHeight || 120;
+  const left = Math.max(8, Math.min(x + offset, rect.width - tw - 8));
+  const top = Math.max(8, Math.min(y + offset, rect.height - th - 8));
+  $tooltip.style.left = `${left}px`;
+  $tooltip.style.top = `${top}px`;
 }
 
 let dragStart = null;
@@ -517,12 +523,26 @@ function clearSelection() {
 
 function zoomToRange(start, end) {
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+  if (state.times.length < 2) return;
 
   const domain = computeDomain();
   if (domain) state.zoomStack.push({ start: domain.start, end: domain.end });
 
-  state.view.start = Math.max(start, state.range.start || start);
-  state.view.end = Math.min(end, state.range.end || end);
+  const clampedStart = Math.max(start, state.range.start || start);
+  const clampedEnd = Math.min(end, state.range.end || end);
+  if (clampedEnd <= clampedStart) return;
+
+  // Snap zoom bounds to actual timestamp samples to avoid empty windows.
+  let iStart = binarySearchTimes(clampedStart);
+  let iEnd = binarySearchTimes(clampedEnd);
+  iStart = Math.max(0, Math.min(iStart, state.times.length - 1));
+  iEnd = Math.max(0, Math.min(iEnd, state.times.length - 1));
+  if (state.times[iEnd] > clampedEnd && iEnd > 0) iEnd -= 1;
+  if (iEnd <= iStart) iEnd = Math.min(state.times.length - 1, iStart + 1);
+  if (iEnd <= iStart) return;
+
+  state.view.start = state.times[iStart];
+  state.view.end = state.times[iEnd];
 
   drawChart();
   setStatus(`Zoom ${fmtTime(state.view.start)} to ${fmtTime(state.view.end)}`);

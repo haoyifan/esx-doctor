@@ -175,14 +175,21 @@ canvas {
 .tooltip {
   position: absolute;
   pointer-events: none;
-  background: rgba(15, 17, 21, 0.95);
-  border: 1px solid var(--border);
+  z-index: 10;
+  background: #0b0f16;
+  border: 1px solid #3a455d;
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   font-size: 12px;
+  line-height: 1.35;
   color: var(--text);
   display: none;
-  max-width: 280px;
+  max-width: 420px;
+  max-height: 60%;
+  overflow: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
 .muted { color: var(--muted); font-size: 12px; margin-top: 8px; }
