@@ -52,6 +52,10 @@ const $instanceSearch = document.getElementById("instanceSearch");
 const $filePath = document.getElementById("filePath");
 const $filePicker = document.getElementById("filePicker");
 const $urlInput = document.getElementById("urlInput");
+const $datasetTabFile = document.getElementById("datasetTabFile");
+const $datasetTabUrl = document.getElementById("datasetTabUrl");
+const $datasetFilePane = document.getElementById("datasetFilePane");
+const $datasetUrlPane = document.getElementById("datasetUrlPane");
 const $themeSelect = document.getElementById("themeSelect");
 const $filterMin = document.getElementById("filterMin");
 const $filterMax = document.getElementById("filterMax");
@@ -156,6 +160,14 @@ function setStatus(msg) {
   $status.textContent = msg;
   const w = state.windows.find((x) => x.id === state.activeWindowId);
   if (w) w.status = msg;
+}
+
+function setDatasetMode(mode) {
+  const useURL = mode === "url";
+  if ($datasetTabFile) $datasetTabFile.classList.toggle("active", !useURL);
+  if ($datasetTabUrl) $datasetTabUrl.classList.toggle("active", useURL);
+  if ($datasetFilePane) $datasetFilePane.classList.toggle("hidden", useURL);
+  if ($datasetUrlPane) $datasetUrlPane.classList.toggle("hidden", !useURL);
 }
 
 function cloneSeries(series) {
@@ -1250,6 +1262,8 @@ $instanceSearch.addEventListener("input", () => {
 
 document.getElementById("openFile").addEventListener("click", () => openPickedFile());
 document.getElementById("openUrl").addEventListener("click", () => openFromURL());
+if ($datasetTabFile) $datasetTabFile.addEventListener("click", () => setDatasetMode("file"));
+if ($datasetTabUrl) $datasetTabUrl.addEventListener("click", () => setDatasetMode("url"));
 document.getElementById("applyFilter").addEventListener("click", () => applyAdvancedFilterFromInputs());
 document.getElementById("resetFilter").addEventListener("click", () => resetAdvancedFilter());
 $urlInput.addEventListener("keydown", (e) => {
@@ -1415,4 +1429,5 @@ if ($sidebarToggleHandle) {
 
 initTheme();
 initSidebarState();
+setDatasetMode("file");
 loadMeta().then(() => loadSeries());

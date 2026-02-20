@@ -21,13 +21,21 @@
           <span class="help-tip" data-help="Choose a local CSV file or a CSV URL, then open it.">?</span>
         </div>
         <div id="filePath" class="mono">Loading...</div>
-        <input id="filePicker" type="file" accept=".csv,text/csv" />
-        <div class="controls">
-          <button id="openFile" class="btn primary">Open Selected CSV</button>
+        <div class="dataset-tabs">
+          <button id="datasetTabFile" class="btn ghost active" type="button">Local File</button>
+          <button id="datasetTabUrl" class="btn ghost" type="button">URL</button>
         </div>
-        <input id="urlInput" type="text" placeholder="Or paste CSV URL (http/https)..." />
-        <div class="controls">
-          <button id="openUrl" class="btn primary">Open CSV from URL</button>
+        <div id="datasetFilePane" class="dataset-pane">
+          <input id="filePicker" type="file" accept=".csv,text/csv" />
+          <div class="controls">
+            <button id="openFile" class="btn primary">Open Selected CSV</button>
+          </div>
+        </div>
+        <div id="datasetUrlPane" class="dataset-pane hidden">
+          <input id="urlInput" type="text" placeholder="Paste CSV URL (http/https)..." />
+          <div class="controls">
+            <button id="openUrl" class="btn primary">Open CSV from URL</button>
+          </div>
         </div>
       </div>
 

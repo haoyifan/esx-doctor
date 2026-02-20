@@ -181,6 +181,7 @@ body.sidebar-collapsed .sidebar {
 }
 
 .section { margin-top: 24px; }
+.hidden { display: none !important; }
 
 .label {
   text-transform: uppercase;
@@ -278,6 +279,11 @@ body.sidebar-collapsed .sidebar {
   align-items: center;
   gap: 6px;
 }
+.field-label-row label.sub-label {
+  display: inline-flex;
+  align-items: center;
+  line-height: 16px;
+}
 .field-row .sub-label {
   margin: 0;
 }
@@ -290,6 +296,15 @@ body.sidebar-collapsed .sidebar {
 .mono { font-family: var(--font-mono); font-size: 12px; }
 
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.dataset-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+.dataset-pane {
+  margin-top: 10px;
+}
 
 .controls { display: flex; gap: 8px; margin-top: 10px; }
 .controls.tight { margin-top: 8px; }
