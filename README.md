@@ -1,34 +1,110 @@
 # HyperScope
 
-Lightweight viewer for large esxtop/PDH CSV exports. It builds a sparse index and serves a local web UI for interactive charting.
+HyperScope is a high-performance viewer for large `esxtop` / PDH CSV files.
+It is optimized for low-memory reads, interactive charting, and large multi-counter datasets.
 
-## Requirements
+## Quick Start
 
-- Go 1.22+
-
-## Run
+From project root:
 
 ```bash
-cd /home/pringles/Desktop/esxtopviz
-go run ./cmd/esxtopviz -file /home/pringles/Desktop/esxtop-va1pv1507.us.ad.lfg.com-2026-02-09T15_30.csv -port 8080
+go run .
 ```
 
-Open `http://localhost:8080` in your browser.
+The app starts and prints the URL (for example `http://localhost:8080`).
 
-## Usage
+Notes:
+- If you pass `-file`, that CSV is loaded immediately.
+- If you do not pass `-file`, HyperScope auto-loads the newest `*.csv` in the current directory.
+- If no CSV exists in current directory, open one from the UI file picker.
 
-- Select counters on the left, click **Load**.
-- You can load a different CSV at runtime from the **Dataset** file picker and **Open Selected CSV**.
-- Drag on the chart to zoom into a time range.
-- Double-click the chart to zoom out one level.
-- When zoomed, use the bottom slider to pan the zoom window.
-- Use **Zoom Out** or **Reset Zoom** to navigate back.
-- Hover to inspect values.
-- Click **Screenshot** to download the current graph view as PNG.
-- Use report buttons to quickly select related counters.
-- Open **User Manual** from the Dataset section for guided usage.
+## Run Options
 
-## Notes
+```bash
+go run . -port 8080
+```
 
-- The CSV parser assumes each record is on a single line (typical for PDH/Perfmon CSV exports).
-- For very large files, repeated zooms re-scan a time window to keep memory usage low.
+```bash
+go run . -file /path/to/esxtop.csv -port 8080
+```
+
+## Build Binary
+
+```bash
+go build -o hyperscope ./cmd/esxtopviz
+./hyperscope -port 8080
+```
+
+## Deployment Guide
+
+### Option A: Run directly (Linux/Windows/macOS)
+- Install Go 1.22+
+- Copy repo folder to target host
+- Run `go run . -port 8080`
+- Access `http://<host>:8080`
+
+### Option B: Ship single binary
+- Build once on target OS/arch:
+  - Linux: `go build -o hyperscope ./cmd/esxtopviz`
+  - Windows: `go build -o hyperscope.exe ./cmd/esxtopviz`
+- Run binary with desired port/file flags.
+
+### Option C: systemd service (Linux)
+Create `/etc/systemd/system/hyperscope.service`:
+
+```ini
+[Unit]
+Description=HyperScope CSV Viewer
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/hyperscope
+ExecStart=/opt/hyperscope/hyperscope -port 8080
+Restart=on-failure
+User=nobody
+Group=nogroup
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now hyperscope
+sudo systemctl status hyperscope
+```
+
+## User Manual
+
+Open from UI:
+- `Dataset` section -> `User Manual`
+
+Or directly:
+- `http://localhost:8080/manual`
+
+Core workflow:
+1. Select CSV file and click `Open Selected CSV`.
+2. Pick a report category.
+3. Pick one attribute and one/more instances.
+4. Click `Load Graph`.
+5. Drag on chart to zoom in.
+6. Double-click chart or click `Zoom Out` to zoom out.
+7. Use bottom slider when zoomed to pan across time.
+8. Click `Screenshot` to download current chart image.
+
+## Features
+
+- Dynamic report categories (CPU, Memory, NUMA, Power, vSAN, etc.)
+- Single-attribute multi-instance plotting for cleaner comparisons
+- Hover tooltip sorted by highest value first
+- Zoom, pan slider, and screenshot export
+- Runtime CSV switching without restart
+
+## Troubleshooting
+
+- If no chart is drawn, ensure at least one instance is selected and click `Load Graph`.
+- If timeline looks short, verify CSV itself contains wider timestamps.
+- If app starts with no data, load CSV through file picker.

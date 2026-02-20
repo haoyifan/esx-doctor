@@ -364,6 +364,41 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	_ = enc.Encode(payload)
 }
 
+func guessDefaultCSV() (string, bool) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		return "", false
+	}
+
+	var chosen string
+	var chosenTime time.Time
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := strings.ToLower(e.Name())
+		if !strings.HasSuffix(name, ".csv") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if chosen == "" || info.ModTime().After(chosenTime) {
+			chosen = e.Name()
+			chosenTime = info.ModTime()
+		}
+	}
+	if chosen == "" {
+		return "", false
+	}
+	abs, err := filepath.Abs(chosen)
+	if err != nil {
+		return "", false
+	}
+	return abs, true
+}
+
 func main() {
 	var filePath string
 	var port int
@@ -371,20 +406,30 @@ func main() {
 	flag.IntVar(&port, "port", 8080, "Port to serve on")
 	flag.Parse()
 
-	if filePath == "" {
-		log.Fatal("-file is required")
-	}
-	absPath, err := filepath.Abs(filePath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if _, err := os.Stat(absPath); err != nil {
-		log.Fatalf("file not found: %s", absPath)
-	}
-
-	df, err := buildIndex(absPath)
-	if err != nil {
-		log.Fatalf("index build failed: %v", err)
+	var df *DataFile
+	if strings.TrimSpace(filePath) != "" {
+		absPath, err := filepath.Abs(filePath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if _, err := os.Stat(absPath); err != nil {
+			log.Fatalf("file not found: %s", absPath)
+		}
+		df, err = buildIndex(absPath)
+		if err != nil {
+			log.Fatalf("index build failed: %v", err)
+		}
+		log.Printf("loaded startup file: %s", df.Label)
+	} else if guessed, ok := guessDefaultCSV(); ok {
+		var err error
+		df, err = buildIndex(guessed)
+		if err != nil {
+			log.Printf("default CSV found but indexing failed (%s): %v", guessed, err)
+		} else {
+			log.Printf("auto-loaded CSV: %s", df.Label)
+		}
+	} else {
+		log.Printf("no startup CSV found; open one from UI file picker")
 	}
 	state := &AppState{df: df}
 
@@ -393,7 +438,14 @@ func main() {
 	mux.HandleFunc("/api/meta", func(w http.ResponseWriter, r *http.Request) {
 		current := state.Get()
 		if current == nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no file loaded"})
+			writeJSON(w, http.StatusOK, map[string]any{
+				"columns": []string{},
+				"rows":    0,
+				"start":   0,
+				"end":     0,
+				"file":    "",
+				"loaded":  false,
+			})
 			return
 		}
 		payload := map[string]any{
@@ -402,6 +454,7 @@ func main() {
 			"start":   current.StartTime.UnixMilli(),
 			"end":     current.EndTime.UnixMilli(),
 			"file":    current.Label,
+			"loaded":  true,
 		}
 		writeJSON(w, http.StatusOK, payload)
 	})
@@ -614,7 +667,10 @@ func main() {
 
 	addr := fmt.Sprintf(":%d", port)
 	log.Printf("esxtopviz listening on %s", addr)
-	log.Printf("file: %s", df.Path)
+	log.Printf("open: http://localhost:%d", port)
+	if current := state.Get(); current != nil {
+		log.Printf("file: %s", current.Label)
+	}
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal(err)
 	}
