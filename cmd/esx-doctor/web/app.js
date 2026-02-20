@@ -34,6 +34,7 @@ const $attributes = document.getElementById("attributes");
 const $instances = document.getElementById("instances");
 const $filePath = document.getElementById("filePath");
 const $filePicker = document.getElementById("filePicker");
+const $urlInput = document.getElementById("urlInput");
 const $status = document.getElementById("status");
 const $chart = document.getElementById("chart");
 const $overlay = document.getElementById("overlay");
@@ -185,6 +186,27 @@ function enforceSingleAttributeSelection() {
   }
 }
 
+function compactInstanceName(item) {
+  if (!item) return "";
+  const instance = (item.instance || "").trim();
+  const obj = (item.object || "").toLowerCase();
+  if (instance === "") return `#${item.idx}`;
+
+  if (obj === "vcpu") {
+    const parts = instance.split(":");
+    if (parts.length >= 2) {
+      const num = parts[0].trim();
+      const name = parts[parts.length - 1].trim();
+      if (num && name) return `vCPU ${num} ${name}`;
+      if (name) return name;
+    }
+  }
+  if (obj.startsWith("physical cpu")) {
+    return `pCPU ${instance}`;
+  }
+  return instance;
+}
+
 function renderAttributes() {
   const visible = getVisibleAttributes();
   $attributes.innerHTML = "";
@@ -331,6 +353,31 @@ async function openPickedFile() {
 
   await loadMeta();
   await loadSeries();
+}
+
+async function openFromURL() {
+  const raw = ($urlInput.value || "").trim();
+  if (raw === "") {
+    setStatus("Enter a CSV URL first.");
+    return;
+  }
+  setStatus("Loading CSV from URL...");
+  try {
+    const res = await fetch("/api/open-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: raw }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      setStatus(data.error || "Failed to load URL");
+      return;
+    }
+    await loadMeta();
+    await loadSeries();
+  } catch (_err) {
+    setStatus("Failed to access URL.");
+  }
 }
 
 function downloadScreenshot() {
@@ -707,7 +754,14 @@ async function loadSeries() {
   }
 
   state.times = data.times || [];
-  state.series = data.series || [];
+  state.series = (data.series || []).map((s, i) => {
+    const idx = cols[i];
+    const item = state.indexMap.get(idx);
+    return {
+      ...s,
+      name: compactInstanceName(item) || s.name,
+    };
+  });
   state.view.start = null;
   state.view.end = null;
   state.zoomStack = [];
@@ -761,6 +815,10 @@ document.getElementById("clearInstances").addEventListener("click", () => {
 });
 
 document.getElementById("openFile").addEventListener("click", () => openPickedFile());
+document.getElementById("openUrl").addEventListener("click", () => openFromURL());
+$urlInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") openFromURL();
+});
 document.getElementById("openManual").addEventListener("click", () => {
   window.open("/manual", "_blank", "noopener,noreferrer");
 });

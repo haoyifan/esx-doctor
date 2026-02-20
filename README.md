@@ -103,6 +103,7 @@ Direct URL:
 ## Typical Workflow
 
 1. Open CSV via file picker.
+   Alternatively paste an HTTP/HTTPS CSV URL and click `Open CSV from URL`.
 2. Select report category.
 3. Select one attribute.
 4. Select one or more instances.
@@ -117,6 +118,7 @@ Direct URL:
 - Dynamic report groups (CPU, Memory, NUMA, Power, vSAN, Storage, Network, etc.)
 - Single-attribute, multi-instance overlays for clear comparison
 - Tooltip values sorted descending
+- Compact tooltip labels (instance-focused names)
 - Zoom + pan slider navigation
 - Screenshot export with graph title and visible time window
 - Runtime CSV switching without restart

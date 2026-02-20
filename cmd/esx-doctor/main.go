@@ -12,7 +12,9 @@ import (
 	"io"
 	"log"
 	"math"
+	"net"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -364,6 +366,36 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 	_ = enc.Encode(payload)
 }
 
+func indexUploadedOrFetchedCSV(reader io.Reader, label, prefix string) (*DataFile, error) {
+	tmp, err := os.CreateTemp("", prefix)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	if _, err := io.Copy(tmp, reader); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return nil, fmt.Errorf("failed to write temp file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return nil, fmt.Errorf("failed to finalize temp file: %w", err)
+	}
+
+	newDF, err := buildIndex(tmpPath)
+	if err != nil {
+		_ = os.Remove(tmpPath)
+		return nil, err
+	}
+	newDF.OwnedTemp = true
+	if strings.TrimSpace(label) != "" {
+		newDF.Label = label
+	} else {
+		newDF.Label = filepath.Base(tmpPath)
+	}
+	return newDF, nil
+}
+
 func guessDefaultCSV() (string, bool) {
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -515,35 +547,79 @@ func main() {
 		}
 		defer file.Close()
 
-		tmp, err := os.CreateTemp("", "esx-doctor-*.csv")
+		newDF, err := indexUploadedOrFetchedCSV(file, strings.TrimSpace(header.Filename), "esx-doctor-upload-*.csv")
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create temp file"})
-			return
-		}
-		tmpPath := tmp.Name()
-		if _, err := io.Copy(tmp, file); err != nil {
-			_ = tmp.Close()
-			_ = os.Remove(tmpPath)
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to save uploaded file"})
-			return
-		}
-		if err := tmp.Close(); err != nil {
-			_ = os.Remove(tmpPath)
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to finalize uploaded file"})
-			return
-		}
-
-		newDF, err := buildIndex(tmpPath)
-		if err != nil {
-			_ = os.Remove(tmpPath)
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("index build failed: %v", err)})
 			return
 		}
-		newDF.OwnedTemp = true
-		if strings.TrimSpace(header.Filename) != "" {
-			newDF.Label = header.Filename
-		} else {
-			newDF.Label = filepath.Base(tmpPath)
+
+		state.Replace(newDF)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"file":  newDF.Label,
+			"rows":  newDF.Rows,
+			"start": newDF.StartTime.UnixMilli(),
+			"end":   newDF.EndTime.UnixMilli(),
+		})
+	})
+
+	mux.HandleFunc("/api/open-url", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "use POST"})
+			return
+		}
+		var req struct {
+			URL string `json:"url"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
+			return
+		}
+		raw := strings.TrimSpace(req.URL)
+		if raw == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "url is required"})
+			return
+		}
+		parsed, err := neturl.Parse(raw)
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid URL"})
+			return
+		}
+		if parsed.Scheme != "http" && parsed.Scheme != "https" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "URL must use http or https"})
+			return
+		}
+
+		client := &http.Client{
+			Timeout: 60 * time.Second,
+			Transport: &http.Transport{
+				DialContext: (&net.Dialer{
+					Timeout: 10 * time.Second,
+				}).DialContext,
+				TLSHandshakeTimeout: 10 * time.Second,
+			},
+		}
+		resp, err := client.Get(raw)
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("failed to fetch URL: %v", err)})
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": fmt.Sprintf("URL returned status %d", resp.StatusCode)})
+			return
+		}
+
+		label := raw
+		if parsed.Path != "" {
+			if base := filepath.Base(parsed.Path); base != "." && base != "/" {
+				label = base
+			}
+		}
+		newDF, err := indexUploadedOrFetchedCSV(resp.Body, label, "esx-doctor-url-*.csv")
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid CSV from URL: %v", err)})
+			return
 		}
 
 		state.Replace(newDF)
