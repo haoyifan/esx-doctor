@@ -30,6 +30,14 @@ const palette = [
   "#bb9af7",
   "#e0af68",
 ];
+const themePalettes = {
+  midnight: palette,
+  "classic-light": ["#0071e3", "#34c759", "#ff9f0a", "#5e5ce6", "#ff375f", "#64d2ff", "#30b0c7"],
+  "soft-aluminum": ["#3a6ea5", "#4f8bc9", "#65a9d7", "#5fb49c", "#b8865d", "#8c78b8", "#cc7f6f"],
+  "studio-neutral": ["#0a84ff", "#30d158", "#ff9f0a", "#5e5ce6", "#ff453a", "#64d2ff", "#bf5af2"],
+};
+const themeStorageKey = "esxDoctorTheme";
+const defaultTheme = "midnight";
 
 const $search = document.getElementById("search");
 const $reports = document.getElementById("reports");
@@ -39,6 +47,7 @@ const $instanceSearch = document.getElementById("instanceSearch");
 const $filePath = document.getElementById("filePath");
 const $filePicker = document.getElementById("filePicker");
 const $urlInput = document.getElementById("urlInput");
+const $themeSelect = document.getElementById("themeSelect");
 const $status = document.getElementById("status");
 const $windowTabs = document.getElementById("windowTabs");
 const $splitter = document.getElementById("splitter");
@@ -65,6 +74,42 @@ const panDrag = {
 const splitDrag = {
   active: false,
 };
+
+function getCSSVar(name, fallback = "") {
+  const value = getComputedStyle(document.body).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
+function getActiveTheme() {
+  const t = document.body.dataset.theme || defaultTheme;
+  return themePalettes[t] ? t : defaultTheme;
+}
+
+function getSeriesPalette() {
+  return themePalettes[getActiveTheme()] || themePalettes[defaultTheme];
+}
+
+function applyTheme(theme) {
+  const next = themePalettes[theme] ? theme : defaultTheme;
+  document.body.dataset.theme = next;
+  if ($themeSelect) $themeSelect.value = next;
+  try {
+    localStorage.setItem(themeStorageKey, next);
+  } catch (_err) {
+    // Ignore storage errors in restricted browser contexts.
+  }
+  drawChart();
+}
+
+function initTheme() {
+  let saved = defaultTheme;
+  try {
+    saved = localStorage.getItem(themeStorageKey) || defaultTheme;
+  } catch (_err) {
+    saved = defaultTheme;
+  }
+  applyTheme(saved);
+}
 
 function fmtTime(ms) {
   const d = new Date(ms);
@@ -572,17 +617,17 @@ function downloadScreenshot() {
   out.width = $chart.width;
   out.height = $chart.height + titleH;
   const octx2 = out.getContext("2d");
-  octx2.fillStyle = "#0b0f16";
+  octx2.fillStyle = getCSSVar("--bg", "#0b0f16");
   octx2.fillRect(0, 0, out.width, out.height);
   octx2.drawImage($chart, 0, titleH);
   const attr = currentAttribute();
   const domain = computeDomain();
   const title = attr ? attr.label : "Graph";
   const subtitle = domain ? `${fmtTime(domain.start)} to ${fmtTime(domain.end)}` : "";
-  octx2.fillStyle = "#e6e8ef";
+  octx2.fillStyle = getCSSVar("--text", "#e6e8ef");
   octx2.font = "600 14px Figtree, Segoe UI, sans-serif";
   octx2.fillText(title, 12, 20);
-  octx2.fillStyle = "#9aa2b2";
+  octx2.fillStyle = getCSSVar("--muted", "#9aa2b2");
   octx2.font = "12px JetBrains Mono, ui-monospace, monospace";
   octx2.fillText(subtitle, 12, 38);
   const link = document.createElement("a");
@@ -701,7 +746,7 @@ function drawChart() {
     $zoomPanWrap.classList.add("hidden");
     hoverPoint = null;
     redrawOverlay();
-    ctx.fillStyle = "#9aa2b2";
+    ctx.fillStyle = getCSSVar("--chart-empty", "#9aa2b2");
     ctx.font = "14px var(--font-sans)";
     ctx.fillText("No data loaded", 24, 32);
     return;
@@ -714,8 +759,13 @@ function drawChart() {
 
   const domain = computeDomain();
   const yrange = computeYRange(domain);
+  const colors = getSeriesPalette();
+  const axisColor = getCSSVar("--chart-axis", "#3a455d");
+  const gridColor = getCSSVar("--chart-grid", "#273347");
+  const tickColor = getCSSVar("--chart-tick", "#9aa2b2");
+  const labelColor = getCSSVar("--chart-label", "#b4bdcf");
 
-  ctx.strokeStyle = "#3a455d";
+  ctx.strokeStyle = axisColor;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(padding.left, padding.top);
@@ -723,7 +773,7 @@ function drawChart() {
   ctx.lineTo(padding.left + plotW, padding.top + plotH);
   ctx.stroke();
 
-  ctx.strokeStyle = "#273347";
+  ctx.strokeStyle = gridColor;
   ctx.beginPath();
   for (let i = 0; i <= 4; i += 1) {
     const y = padding.top + (plotH / 4) * i;
@@ -732,7 +782,7 @@ function drawChart() {
   }
   ctx.stroke();
 
-  ctx.fillStyle = "#9aa2b2";
+  ctx.fillStyle = tickColor;
   ctx.font = "11px var(--font-mono)";
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
@@ -754,7 +804,7 @@ function drawChart() {
 
   ctx.textAlign = "center";
   ctx.textBaseline = "bottom";
-  ctx.fillStyle = "#b4bdcf";
+  ctx.fillStyle = labelColor;
   ctx.fillText("Time (UTC)", padding.left + plotW / 2, rect.height - 6);
 
   state.yUnit = resolveYUnit();
@@ -763,12 +813,12 @@ function drawChart() {
   ctx.rotate(-Math.PI / 2);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillStyle = "#b4bdcf";
+  ctx.fillStyle = labelColor;
   ctx.fillText(`Value (${state.yUnit})`, 0, 0);
   ctx.restore();
 
   state.series.forEach((s, idx) => {
-    ctx.strokeStyle = palette[idx % palette.length];
+    ctx.strokeStyle = colors[idx % colors.length];
     ctx.lineWidth = 1.4;
     ctx.beginPath();
     let started = false;
@@ -824,9 +874,10 @@ function showTooltip(x, y) {
   const idx = Math.min(binarySearchTimes(t), state.times.length - 1);
   const timeValue = state.times[idx];
 
+  const colors = getSeriesPalette();
   const rows = state.series.map((s, i) => ({
     name: s.name,
-    color: palette[i % palette.length],
+    color: colors[i % colors.length],
     value: s.values[idx],
   }));
 
@@ -863,8 +914,8 @@ function drawSelection(startX, currentX) {
   const rect = $overlay.getBoundingClientRect();
   const left = Math.min(startX, currentX);
   const right = Math.max(startX, currentX);
-  octx.fillStyle = "rgba(93, 214, 199, 0.15)";
-  octx.strokeStyle = "rgba(93, 214, 199, 0.85)";
+  octx.fillStyle = getCSSVar("--select-fill", "rgba(93, 214, 199, 0.15)");
+  octx.strokeStyle = getCSSVar("--select-stroke", "rgba(93, 214, 199, 0.85)");
   octx.lineWidth = 1;
   octx.fillRect(left, 0, right - left, rect.height);
   octx.strokeRect(left, 0, right - left, rect.height);
@@ -876,7 +927,7 @@ function drawCrosshair(x, y) {
   const plotW = rect.width - padding.left - padding.right;
   const plotH = rect.height - padding.top - padding.bottom;
   if (x < padding.left || x > padding.left + plotW || y < padding.top || y > padding.top + plotH) return;
-  octx.strokeStyle = "rgba(186, 196, 219, 0.55)";
+  octx.strokeStyle = getCSSVar("--crosshair", "rgba(186, 196, 219, 0.55)");
   octx.lineWidth = 1;
   octx.setLineDash([4, 4]);
   octx.beginPath();
@@ -1212,4 +1263,11 @@ $tooltip.addEventListener("mouseleave", () => {
 
 window.addEventListener("resize", drawChart);
 
+if ($themeSelect) {
+  $themeSelect.addEventListener("change", () => {
+    applyTheme($themeSelect.value);
+  });
+}
+
+initTheme();
 loadMeta().then(() => loadSeries());
