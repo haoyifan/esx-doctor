@@ -32,6 +32,7 @@ const $search = document.getElementById("search");
 const $reports = document.getElementById("reports");
 const $attributes = document.getElementById("attributes");
 const $instances = document.getElementById("instances");
+const $instanceSearch = document.getElementById("instanceSearch");
 const $filePath = document.getElementById("filePath");
 const $filePicker = document.getElementById("filePicker");
 const $urlInput = document.getElementById("urlInput");
@@ -258,7 +259,15 @@ function renderInstances() {
 
   enforceSingleAttributeSelection();
 
-  const sorted = [...attr.items].sort((a, b) => a.instance.localeCompare(b.instance));
+  const filter = ($instanceSearch.value || "").trim().toLowerCase();
+  const sorted = [...attr.items]
+    .filter((a) => {
+      if (filter === "") return true;
+      const raw = (a.instance || "").toLowerCase();
+      const compact = compactInstanceName(a).toLowerCase();
+      return raw.includes(filter) || compact.includes(filter);
+    })
+    .sort((a, b) => a.instance.localeCompare(b.instance));
   const frag = document.createDocumentFragment();
 
   sorted.forEach((item) => {
@@ -841,6 +850,7 @@ document.getElementById("clearInstances").addEventListener("click", () => {
   attr.items.forEach((item) => state.selected.delete(item.idx));
   renderInstances();
 });
+$instanceSearch.addEventListener("input", () => renderInstances());
 
 document.getElementById("openFile").addEventListener("click", () => openPickedFile());
 document.getElementById("openUrl").addEventListener("click", () => openFromURL());
