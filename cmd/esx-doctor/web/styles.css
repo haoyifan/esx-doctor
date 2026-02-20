@@ -33,9 +33,10 @@ body {
 .sidebar {
   background: linear-gradient(180deg, #151923 0%, #11151d 100%);
   border-right: 1px solid var(--border);
-  padding: 24px;
+  padding: clamp(12px, calc(var(--sidebar-width) * 0.06), 24px);
   overflow-y: auto;
   min-height: 0;
+  min-width: 0;
 }
 .splitter {
   background: linear-gradient(180deg, #1a202d 0%, #121823 100%);
@@ -69,6 +70,7 @@ body {
 
 .controls { display: flex; gap: 8px; margin-top: 10px; }
 .controls.tight { margin-top: 8px; }
+.controls { flex-wrap: wrap; }
 
 .btn {
   border: 1px solid var(--border);

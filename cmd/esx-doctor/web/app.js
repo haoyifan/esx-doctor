@@ -878,12 +878,14 @@ function drawCrosshair(x, y) {
   if (x < padding.left || x > padding.left + plotW || y < padding.top || y > padding.top + plotH) return;
   octx.strokeStyle = "rgba(186, 196, 219, 0.55)";
   octx.lineWidth = 1;
+  octx.setLineDash([4, 4]);
   octx.beginPath();
   octx.moveTo(x, padding.top);
   octx.lineTo(x, padding.top + plotH);
   octx.moveTo(padding.left, y);
   octx.lineTo(padding.left + plotW, y);
   octx.stroke();
+  octx.setLineDash([]);
 }
 
 function redrawOverlay() {
@@ -1007,7 +1009,7 @@ async function loadSeries() {
   state.panSpan = null;
 
   drawChart();
-  setStatus(`Loaded ${state.times.length.toLocaleString()} timestamps, ${state.series.length} series`);
+  setStatus("Ready");
   saveCurrentWindowState();
 }
 
@@ -1073,7 +1075,6 @@ document.getElementById("openManual").addEventListener("click", () => {
 
 document.getElementById("loadSeries").addEventListener("click", () => loadSeries());
 document.getElementById("screenshot").addEventListener("click", () => downloadScreenshot());
-document.getElementById("zoomOut").addEventListener("click", () => zoomOut());
 $zoomPanWindow.addEventListener("mousedown", (e) => {
   e.preventDefault();
   const span = parseInt($zoomPanTrack.dataset.span || "1", 10);
@@ -1123,7 +1124,7 @@ $splitter.addEventListener("mousedown", (e) => {
 
 window.addEventListener("mousemove", (e) => {
   if (!splitDrag.active) return;
-  const minW = 260;
+  const minW = 300;
   const maxW = Math.max(minW, window.innerWidth - 420);
   const width = Math.max(minW, Math.min(e.clientX, maxW));
   document.documentElement.style.setProperty("--sidebar-width", `${Math.round(width)}px`);
