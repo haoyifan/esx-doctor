@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	args := append([]string{"run", "./cmd/esxtopviz"}, os.Args[1:]...)
+	args := append([]string{"run", "./cmd/esx-doctor"}, os.Args[1:]...)
 	cmd := exec.Command("go", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

@@ -358,7 +358,7 @@ function downloadScreenshot() {
   octx2.fillText(subtitle, 12, 38);
   const link = document.createElement("a");
   const safe = (title || "graph").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase();
-  link.download = `hyperscope-${safe || "graph"}-${Date.now()}.png`;
+  link.download = `esx-doctor-${safe || "graph"}-${Date.now()}.png`;
   link.href = out.toDataURL("image/png");
   link.click();
 }

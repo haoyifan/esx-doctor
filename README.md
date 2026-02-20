@@ -1,7 +1,7 @@
-# HyperScope
+# esx-doctor
 
-HyperScope is a high-performance viewer for large `esxtop` / PDH CSV files.
-It is optimized for low-memory reads, interactive charting, and large multi-counter datasets.
+`esx-doctor` is a high-performance viewer for large ESX/esxtop batch CSV exports.
+It is designed for fast startup, low memory usage, and interactive time-series troubleshooting.
 
 ## Quick Start
 
@@ -11,12 +11,18 @@ From project root:
 go run .
 ```
 
-The app starts and prints the URL (for example `http://localhost:8080`).
+The app prints the URL, for example:
 
-Notes:
-- If you pass `-file`, that CSV is loaded immediately.
-- If you do not pass `-file`, HyperScope auto-loads the newest `*.csv` in the current directory.
-- If no CSV exists in current directory, open one from the UI file picker.
+```text
+open: http://localhost:8080
+```
+
+Then open that URL in your browser.
+
+Startup behavior:
+- If `-file` is provided, that CSV is loaded immediately.
+- If `-file` is omitted, `esx-doctor` auto-loads the newest `*.csv` in current directory.
+- If no CSV exists in current directory, use the UI file picker (`Open Selected CSV`).
 
 ## Run Options
 
@@ -25,42 +31,51 @@ go run . -port 8080
 ```
 
 ```bash
-go run . -file /path/to/esxtop.csv -port 8080
+go run . -file /path/to/esx.csv -port 8080
 ```
 
 ## Build Binary
 
 ```bash
-go build -o hyperscope ./cmd/esxtopviz
-./hyperscope -port 8080
+go build -o esx-doctor ./cmd/esx-doctor
+./esx-doctor -port 8080
+```
+
+Windows:
+
+```bash
+go build -o esx-doctor.exe ./cmd/esx-doctor
 ```
 
 ## Deployment Guide
 
-### Option A: Run directly (Linux/Windows/macOS)
-- Install Go 1.22+
-- Copy repo folder to target host
-- Run `go run . -port 8080`
-- Access `http://<host>:8080`
+### Option A: Direct run (Linux/macOS/Windows)
+1. Install Go 1.22+
+2. Copy repo to host
+3. Run `go run . -port 8080`
+4. Open `http://<host>:8080`
 
-### Option B: Ship single binary
-- Build once on target OS/arch:
-  - Linux: `go build -o hyperscope ./cmd/esxtopviz`
-  - Windows: `go build -o hyperscope.exe ./cmd/esxtopviz`
-- Run binary with desired port/file flags.
+### Option B: Single binary deployment
+1. Build binary on target OS/arch
+2. Copy binary to target host
+3. Run with optional flags:
 
-### Option C: systemd service (Linux)
-Create `/etc/systemd/system/hyperscope.service`:
+```bash
+./esx-doctor -port 8080 -file /data/host-esx.csv
+```
+
+### Option C: Linux systemd service
+Create `/etc/systemd/system/esx-doctor.service`:
 
 ```ini
 [Unit]
-Description=HyperScope CSV Viewer
+Description=esx-doctor CSV Viewer
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/hyperscope
-ExecStart=/opt/hyperscope/hyperscope -port 8080
+WorkingDirectory=/opt/esx-doctor
+ExecStart=/opt/esx-doctor/esx-doctor -port 8080
 Restart=on-failure
 User=nobody
 Group=nogroup
@@ -69,42 +84,45 @@ Group=nogroup
 WantedBy=multi-user.target
 ```
 
-Then:
+Enable service:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now hyperscope
-sudo systemctl status hyperscope
+sudo systemctl enable --now esx-doctor
+sudo systemctl status esx-doctor
 ```
 
 ## User Manual
 
-Open from UI:
-- `Dataset` section -> `User Manual`
+In app:
+- `Dataset` -> `User Manual`
 
-Or directly:
+Direct URL:
 - `http://localhost:8080/manual`
 
-Core workflow:
-1. Select CSV file and click `Open Selected CSV`.
-2. Pick a report category.
-3. Pick one attribute and one/more instances.
-4. Click `Load Graph`.
-5. Drag on chart to zoom in.
-6. Double-click chart or click `Zoom Out` to zoom out.
-7. Use bottom slider when zoomed to pan across time.
-8. Click `Screenshot` to download current chart image.
+## Typical Workflow
+
+1. Open CSV via file picker.
+2. Select report category.
+3. Select one attribute.
+4. Select one or more instances.
+5. Click `Load Graph`.
+6. Drag on chart to zoom in.
+7. Double-click chart or click `Zoom Out` to zoom out.
+8. Use bottom slider to pan current zoom window.
+9. Click `Screenshot` to export the current view.
 
 ## Features
 
-- Dynamic report categories (CPU, Memory, NUMA, Power, vSAN, etc.)
-- Single-attribute multi-instance plotting for cleaner comparisons
-- Hover tooltip sorted by highest value first
-- Zoom, pan slider, and screenshot export
+- Dynamic report groups (CPU, Memory, NUMA, Power, vSAN, Storage, Network, etc.)
+- Single-attribute, multi-instance overlays for clear comparison
+- Tooltip values sorted descending
+- Zoom + pan slider navigation
+- Screenshot export with graph title and visible time window
 - Runtime CSV switching without restart
 
 ## Troubleshooting
 
-- If no chart is drawn, ensure at least one instance is selected and click `Load Graph`.
-- If timeline looks short, verify CSV itself contains wider timestamps.
-- If app starts with no data, load CSV through file picker.
+- No graph lines: select at least one instance and click `Load Graph`.
+- Short timeline: verify CSV itself spans wider timestamps.
+- App starts with no data: load CSV from file picker.

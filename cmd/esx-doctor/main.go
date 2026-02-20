@@ -402,7 +402,7 @@ func guessDefaultCSV() (string, bool) {
 func main() {
 	var filePath string
 	var port int
-	flag.StringVar(&filePath, "file", "", "Path to esxtop CSV file")
+	flag.StringVar(&filePath, "file", "", "Path to ESX CSV file")
 	flag.IntVar(&port, "port", 8080, "Port to serve on")
 	flag.Parse()
 
@@ -515,7 +515,7 @@ func main() {
 		}
 		defer file.Close()
 
-		tmp, err := os.CreateTemp("", "esxtopviz-*.csv")
+		tmp, err := os.CreateTemp("", "esx-doctor-*.csv")
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create temp file"})
 			return
@@ -666,7 +666,7 @@ func main() {
 	})
 
 	addr := fmt.Sprintf(":%d", port)
-	log.Printf("esxtopviz listening on %s", addr)
+	log.Printf("esx-doctor listening on %s", addr)
 	log.Printf("open: http://localhost:%d", port)
 	if current := state.Get(); current != nil {
 		log.Printf("file: %s", current.Label)
