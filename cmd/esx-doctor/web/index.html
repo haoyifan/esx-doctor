@@ -85,24 +85,17 @@
         <summary class="optional-toggle">Advanced Filter</summary>
         <div class="field-row">
           <div class="field-label-row">
-            <label for="filterMin" class="sub-label">Min Value</label>
+            <label for="filterMin" class="sub-label">Min</label>
             <span class="help-tip" data-help="Only count samples greater than or equal to this value. Leave empty to disable.">?</span>
           </div>
           <input id="filterMin" class="num-input" type="text" placeholder="e.g. 5" />
         </div>
         <div class="field-row">
           <div class="field-label-row">
-            <label for="filterMax" class="sub-label">Max Value</label>
+            <label for="filterMax" class="sub-label">Max</label>
             <span class="help-tip" data-help="Only count samples less than or equal to this value. Leave empty to disable.">?</span>
           </div>
           <input id="filterMax" class="num-input" type="text" placeholder="e.g. 95" />
-        </div>
-        <div class="field-row">
-          <div class="field-label-row">
-            <label for="filterActivePct" class="sub-label">Min Active %</label>
-            <span class="help-tip" data-help="Keep an instance only if the percent of in-range samples is at least this value (0-100). Leave empty to disable.">?</span>
-          </div>
-          <input id="filterActivePct" class="num-input" type="text" placeholder="0-100" />
         </div>
         <div class="controls">
           <button id="applyFilter" class="btn ghost">Apply Filter</button>
