@@ -30,6 +30,8 @@ const state = {
   selectedMarkId: null,
   hoveredMarkId: null,
   markDraftColor: "#ff9f0a",
+  contextMarkId: null,
+  contextMenuX: null,
 };
 
 const palette = [
@@ -66,11 +68,18 @@ const $datasetUrlPane = document.getElementById("datasetUrlPane");
 const $themeSelect = document.getElementById("themeSelect");
 const $filterMin = document.getElementById("filterMin");
 const $filterMax = document.getElementById("filterMax");
-const $markColor = document.getElementById("markColor");
-const $editMark = document.getElementById("editMark");
-const $deleteMark = document.getElementById("deleteMark");
-const $clearMarks = document.getElementById("clearMarks");
 const $sidebarToggleHandle = document.getElementById("sidebarToggleHandle");
+const $markMenu = document.getElementById("markMenu");
+const $markMenuAdd = document.getElementById("markMenuAdd");
+const $markMenuEdit = document.getElementById("markMenuEdit");
+const $markMenuDelete = document.getElementById("markMenuDelete");
+const $markMenuClear = document.getElementById("markMenuClear");
+const $markMenuColor = document.getElementById("markMenuColor");
+const $markEditModal = document.getElementById("markEditModal");
+const $markEditName = document.getElementById("markEditName");
+const $markEditComment = document.getElementById("markEditComment");
+const $markEditSave = document.getElementById("markEditSave");
+const $markEditCancel = document.getElementById("markEditCancel");
 const $status = document.getElementById("status");
 const $selectedAttributeLabel = document.getElementById("selectedAttributeLabel");
 const $windowTabs = document.getElementById("windowTabs");
@@ -230,21 +239,25 @@ function hitTestMark(x, y) {
 
 function updateMarkButtons() {
   const mark = state.marks.find((m) => m.id === state.selectedMarkId);
-  const hasSelected = Boolean(mark);
-  if ($editMark) $editMark.disabled = !hasSelected;
-  if ($deleteMark) $deleteMark.disabled = !hasSelected;
-  if ($markColor) {
-    $markColor.value = hasSelected ? (mark.color || state.markDraftColor) : state.markDraftColor;
-  }
+  if ($markMenuColor) $markMenuColor.value = mark ? (mark.color || state.markDraftColor) : state.markDraftColor;
 }
 
 function drawMarkHoverText(mark, x, topY) {
-  if (!mark || !mark.text) return;
+  if (!mark) return;
+  const title = (mark.title || "").trim();
+  const comment = (mark.comment || "").trim();
+  if (!title && !comment) return;
   const padX = 8;
-  const h = 20;
-  const text = mark.text;
+  const lines = [];
+  if (title) lines.push(title);
+  if (comment) lines.push(comment);
+  const h = 20 + (lines.length - 1) * 16;
   octx.font = "12px var(--font-sans)";
-  const w = Math.min(260, Math.max(70, Math.ceil(octx.measureText(text).width) + padX * 2));
+  let textW = 70;
+  lines.forEach((line) => {
+    textW = Math.max(textW, Math.ceil(octx.measureText(line).width));
+  });
+  const w = Math.min(300, textW + padX * 2);
   const left = Math.max(8, Math.min(x - w / 2, $overlay.clientWidth - w - 8));
   const y = Math.max(8, topY);
   octx.fillStyle = getCSSVar("--tooltip-bg", "#0b0f16");
@@ -252,11 +265,14 @@ function drawMarkHoverText(mark, x, topY) {
   octx.lineWidth = 1;
   octx.fillRect(left, y, w, h);
   octx.strokeRect(left, y, w, h);
-  octx.fillStyle = getCSSVar("--text", "#e6e8ef");
   octx.textAlign = "left";
-  octx.textBaseline = "middle";
-  const clipped = text.length > 60 ? `${text.slice(0, 57)}...` : text;
-  octx.fillText(clipped, left + padX, y + h / 2);
+  octx.textBaseline = "top";
+  octx.fillStyle = getCSSVar("--text", "#e6e8ef");
+  if (title) octx.fillText(title.length > 56 ? `${title.slice(0, 53)}...` : title, left + padX, y + 5);
+  if (comment) {
+    octx.fillStyle = getCSSVar("--muted", "#9aa2b2");
+    octx.fillText(comment.length > 56 ? `${comment.slice(0, 53)}...` : comment, left + padX, y + 21);
+  }
 }
 
 function drawMarks() {
@@ -275,9 +291,10 @@ function drawMarks() {
     octx.lineTo(mark.x, m.padding.top + m.plotH);
     octx.stroke();
     octx.setLineDash([]);
-    const tag = `M${mark.order}`;
+    const tag = (mark.title || "").trim() || `M${mark.order}`;
     octx.font = "11px var(--font-mono)";
-    const tw = Math.ceil(octx.measureText(tag).width) + 10;
+    const shownTag = tag.length > 18 ? `${tag.slice(0, 15)}...` : tag;
+    const tw = Math.ceil(octx.measureText(shownTag).width) + 10;
     const tx = Math.max(4, Math.min(mark.x - tw / 2, m.rect.width - tw - 4));
     const ty = m.padding.top + 4;
     octx.fillStyle = mark.color || "#ff9f0a";
@@ -285,7 +302,7 @@ function drawMarks() {
     octx.fillStyle = "#111";
     octx.textAlign = "left";
     octx.textBaseline = "middle";
-    octx.fillText(tag, tx + 5, ty + 8);
+    octx.fillText(shownTag, tx + 5, ty + 8);
     if (mark.id === state.hoveredMarkId) drawMarkHoverText(mark, mark.x, ty + 20);
   });
 }
@@ -305,11 +322,11 @@ function addMarkAtX(x) {
     redrawOverlay();
     return;
   }
-  const note = window.prompt("Mark note (optional)", "") || "";
   const mark = {
     id: `mk-${state.markSeq++}`,
     time: nearest,
-    text: note.trim(),
+    title: "",
+    comment: "",
     color: state.markDraftColor || "#ff9f0a",
   };
   state.marks.push(mark);
@@ -320,14 +337,43 @@ function addMarkAtX(x) {
   redrawOverlay();
 }
 
+function openMarkEditor(mark) {
+  if (!mark || !$markEditModal || !$markEditName || !$markEditComment || !$markEditSave || !$markEditCancel) return;
+  $markEditName.value = mark.title || "";
+  $markEditComment.value = mark.comment || "";
+  $markEditModal.classList.remove("hidden");
+  $markEditName.focus();
+
+  const cleanup = () => {
+    $markEditModal.classList.add("hidden");
+    $markEditSave.removeEventListener("click", onSave);
+    $markEditCancel.removeEventListener("click", onCancel);
+    $markEditModal.removeEventListener("click", onBackdrop);
+    window.removeEventListener("keydown", onKey);
+  };
+  const onSave = () => {
+    mark.title = ($markEditName.value || "").trim();
+    mark.comment = ($markEditComment.value || "").trim();
+    cleanup();
+    redrawOverlay();
+  };
+  const onCancel = () => cleanup();
+  const onBackdrop = (e) => {
+    if (e.target === $markEditModal) cleanup();
+  };
+  const onKey = (e) => {
+    if (e.key === "Escape") cleanup();
+  };
+  $markEditSave.addEventListener("click", onSave);
+  $markEditCancel.addEventListener("click", onCancel);
+  $markEditModal.addEventListener("click", onBackdrop);
+  window.addEventListener("keydown", onKey);
+}
+
 function editSelectedMark() {
   const mark = state.marks.find((m) => m.id === state.selectedMarkId);
   if (!mark) return;
-  const nextText = window.prompt("Edit mark note", mark.text || "");
-  if (nextText === null) return;
-  mark.text = nextText.trim();
-  updateMarkButtons();
-  redrawOverlay();
+  openMarkEditor(mark);
 }
 
 function deleteSelectedMark() {
@@ -345,9 +391,38 @@ function clearAllMarks() {
   if (state.marks.length === 0) return;
   state.marks = [];
   state.selectedMarkId = null;
+  state.contextMarkId = null;
   state.hoveredMarkId = null;
   updateMarkButtons();
   redrawOverlay();
+}
+
+function hideMarkMenu() {
+  if ($markMenu) $markMenu.classList.add("hidden");
+  state.contextMarkId = null;
+  state.contextMenuX = null;
+}
+
+function showMarkMenu(clientX, clientY, hitMark) {
+  if (!$markMenu || !$markMenuAdd || !$markMenuEdit || !$markMenuDelete || !$markMenuClear || !$markMenuColor) return;
+  state.contextMarkId = hitMark ? hitMark.id : null;
+  if (hitMark) state.selectedMarkId = hitMark.id;
+  updateMarkButtons();
+
+  $markMenuEdit.disabled = !state.contextMarkId;
+  $markMenuDelete.disabled = !state.contextMarkId;
+  $markMenuClear.disabled = state.marks.length === 0;
+
+  const selected = state.marks.find((m) => m.id === state.selectedMarkId);
+  $markMenuColor.value = selected ? (selected.color || state.markDraftColor) : state.markDraftColor;
+
+  $markMenu.classList.remove("hidden");
+  const menuW = $markMenu.offsetWidth || 210;
+  const menuH = $markMenu.offsetHeight || 200;
+  const left = Math.max(8, Math.min(clientX, window.innerWidth - menuW - 8));
+  const top = Math.max(8, Math.min(clientY, window.innerHeight - menuH - 8));
+  $markMenu.style.left = `${left}px`;
+  $markMenu.style.top = `${top}px`;
 }
 
 function chooseLargeLoadAction(totalSelected) {
@@ -921,8 +996,10 @@ function applyMeta(data) {
   state.marks = [];
   state.markSeq = 1;
   state.selectedMarkId = null;
+  state.contextMarkId = null;
   state.hoveredMarkId = null;
   updateMarkButtons();
+  hideMarkMenu();
 
   $filePath.textContent = state.file;
 
@@ -1564,19 +1641,36 @@ document.getElementById("closeWindow").addEventListener("click", () => closeActi
 document.getElementById("openManual").addEventListener("click", () => {
   window.open("/manual", "_blank", "noopener,noreferrer");
 });
-if ($editMark) $editMark.addEventListener("click", () => editSelectedMark());
-if ($deleteMark) $deleteMark.addEventListener("click", () => deleteSelectedMark());
-if ($clearMarks) $clearMarks.addEventListener("click", () => clearAllMarks());
-if ($markColor) {
-  $markColor.addEventListener("input", () => {
-    state.markDraftColor = $markColor.value;
-    const mark = state.marks.find((m) => m.id === state.selectedMarkId);
-    if (mark) {
-      mark.color = $markColor.value;
-      redrawOverlay();
-    }
-  });
-}
+if ($markMenuAdd) $markMenuAdd.addEventListener("click", () => {
+  if (Number.isFinite(state.contextMenuX)) addMarkAtX(state.contextMenuX);
+  hideMarkMenu();
+});
+if ($markMenuEdit) $markMenuEdit.addEventListener("click", () => {
+  if (state.contextMarkId) {
+    state.selectedMarkId = state.contextMarkId;
+    editSelectedMark();
+  }
+  hideMarkMenu();
+});
+if ($markMenuDelete) $markMenuDelete.addEventListener("click", () => {
+  if (state.contextMarkId) {
+    state.selectedMarkId = state.contextMarkId;
+    deleteSelectedMark();
+  }
+  hideMarkMenu();
+});
+if ($markMenuClear) $markMenuClear.addEventListener("click", () => {
+  clearAllMarks();
+  hideMarkMenu();
+});
+if ($markMenuColor) $markMenuColor.addEventListener("input", () => {
+  state.markDraftColor = $markMenuColor.value;
+  const mark = state.marks.find((m) => m.id === (state.contextMarkId || state.selectedMarkId));
+  if (mark) {
+    mark.color = $markMenuColor.value;
+    redrawOverlay();
+  }
+});
 
 document.getElementById("loadSeries").addEventListener("click", () => loadSeries());
 document.getElementById("screenshot").addEventListener("click", () => downloadScreenshot());
@@ -1654,6 +1748,7 @@ document.getElementById("resetZoom").addEventListener("click", () => {
 });
 
 $overlay.addEventListener("mousedown", (e) => {
+  hideMarkMenu();
   if (state.times.length === 0) return;
   if (tooltipIdleTimer) {
     window.clearTimeout(tooltipIdleTimer);
@@ -1678,6 +1773,14 @@ $overlay.addEventListener("mousedown", (e) => {
   dragCurrentX = e.offsetX;
   hoverPoint = { x: e.offsetX, y: e.offsetY };
   redrawOverlay();
+});
+
+$overlay.addEventListener("contextmenu", (e) => {
+  e.preventDefault();
+  if (state.times.length === 0) return;
+  const hit = hitTestMark(e.offsetX, e.offsetY);
+  state.contextMenuX = e.offsetX;
+  showMarkMenu(e.clientX, e.clientY, hit);
 });
 
 $overlay.addEventListener("mousemove", (e) => {
@@ -1755,6 +1858,9 @@ $tooltip.addEventListener("mouseleave", () => {
 });
 
 window.addEventListener("resize", drawChart);
+window.addEventListener("mousedown", (e) => {
+  if ($markMenu && !$markMenu.classList.contains("hidden") && !$markMenu.contains(e.target)) hideMarkMenu();
+});
 window.addEventListener("keydown", (e) => {
   if ((e.key === "Delete" || e.key === "Backspace") && state.selectedMarkId) {
     e.preventDefault();

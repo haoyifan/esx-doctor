@@ -410,15 +410,6 @@ select {
   align-items: center;
   gap: 8px;
 }
-.mark-color {
-  width: 34px;
-  height: 28px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  padding: 2px;
-  cursor: pointer;
-}
 .windowbar {
   display: flex;
   justify-content: space-between;
@@ -573,6 +564,69 @@ canvas {
 }
 .modal-actions .btn.primary {
   width: auto;
+}
+.modal-form .sub-label {
+  margin: 8px 0 6px;
+}
+.modal-form textarea {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 13px;
+  resize: vertical;
+}
+.mark-menu {
+  position: fixed;
+  z-index: 90;
+  width: 210px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+  padding: 8px;
+}
+.mark-menu-item {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text);
+  border-radius: 6px;
+  padding: 7px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.mark-menu-item:hover {
+  border-color: var(--border);
+  background: var(--panel-2);
+}
+.mark-menu-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.mark-menu-color {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+.mark-menu-color input[type="color"] {
+  width: 30px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: transparent;
 }
 
 @media (max-width: 900px) {

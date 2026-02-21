@@ -121,10 +121,6 @@
           <button id="openManual" class="btn ghost">User Manual</button>
           <button id="screenshot" class="btn ghost">Screenshot</button>
           <button id="resetZoom" class="btn ghost">Reset Zoom</button>
-          <input id="markColor" class="mark-color" type="color" value="#ff9f0a" title="Mark color" />
-          <button id="editMark" class="btn ghost">Edit Mark</button>
-          <button id="deleteMark" class="btn ghost">Delete Mark</button>
-          <button id="clearMarks" class="btn ghost">Clear Marks</button>
           <div id="status" class="status">Idle</div>
         </div>
       </div>
@@ -157,6 +153,33 @@
         <button id="loadGuardCancel" class="btn ghost" type="button">Cancel</button>
         <button id="loadGuardSuggested" class="btn" type="button">Load Recommended</button>
         <button id="loadGuardAll" class="btn primary" type="button">Load All</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="markMenu" class="mark-menu hidden">
+    <button id="markMenuAdd" class="mark-menu-item" type="button">Add Mark Here</button>
+    <button id="markMenuEdit" class="mark-menu-item" type="button">Edit Mark</button>
+    <button id="markMenuDelete" class="mark-menu-item" type="button">Delete Mark</button>
+    <button id="markMenuClear" class="mark-menu-item" type="button">Clear All Marks</button>
+    <label class="mark-menu-color">
+      Mark Color
+      <input id="markMenuColor" type="color" value="#ff9f0a" />
+    </label>
+  </div>
+
+  <div id="markEditModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="markEditTitle">
+    <div class="modal-card">
+      <div id="markEditTitle" class="modal-title">Edit Mark</div>
+      <div class="modal-form">
+        <label for="markEditName" class="sub-label">Title</label>
+        <input id="markEditName" type="text" placeholder="e.g. Storage latency spike" />
+        <label for="markEditComment" class="sub-label">Comment</label>
+        <textarea id="markEditComment" rows="4" placeholder="Optional detailed note"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button id="markEditCancel" class="btn ghost" type="button">Cancel</button>
+        <button id="markEditSave" class="btn primary" type="button">Save</button>
       </div>
     </div>
   </div>
