@@ -1099,6 +1099,8 @@ function downloadScreenshot() {
   octx2.fillStyle = getCSSVar("--bg", "#0b0f16");
   octx2.fillRect(0, 0, out.width, out.height);
   octx2.drawImage($chart, 0, titleH);
+  // Include overlay layer so screenshot captures marks/crosshair annotations.
+  octx2.drawImage($overlay, 0, titleH);
   const attr = currentAttribute();
   const domain = computeDomain();
   const title = attr ? attr.label : "Graph";
