@@ -362,7 +362,12 @@ function openMarkEditor(mark) {
     if (e.target === $markEditModal) cleanup();
   };
   const onKey = (e) => {
-    if (e.key === "Escape") cleanup();
+    if (e.key === "Escape") {
+      e.preventDefault();
+      const active = document.activeElement;
+      if (active === $markEditName) $markEditName.value = "";
+      else if (active === $markEditComment) $markEditComment.value = "";
+    }
   };
   $markEditSave.addEventListener("click", onSave);
   $markEditCancel.addEventListener("click", onCancel);
@@ -1862,6 +1867,10 @@ window.addEventListener("mousedown", (e) => {
   if ($markMenu && !$markMenu.classList.contains("hidden") && !$markMenu.contains(e.target)) hideMarkMenu();
 });
 window.addEventListener("keydown", (e) => {
+  const el = e.target;
+  const typingTarget = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+  const editModalOpen = $markEditModal && !$markEditModal.classList.contains("hidden");
+  if (typingTarget || editModalOpen) return;
   if ((e.key === "Delete" || e.key === "Backspace") && state.selectedMarkId) {
     e.preventDefault();
     deleteSelectedMark();
