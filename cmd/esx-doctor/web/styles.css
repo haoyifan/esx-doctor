@@ -410,6 +410,15 @@ select {
   align-items: center;
   gap: 8px;
 }
+.mark-color {
+  width: 34px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  padding: 2px;
+  cursor: pointer;
+}
 .windowbar {
   display: flex;
   justify-content: space-between;

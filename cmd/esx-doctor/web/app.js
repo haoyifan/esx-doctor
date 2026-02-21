@@ -25,6 +25,11 @@ const state = {
     min: null,
     max: null,
   },
+  marks: [],
+  markSeq: 1,
+  selectedMarkId: null,
+  hoveredMarkId: null,
+  markDraftColor: "#ff9f0a",
 };
 
 const palette = [
@@ -61,6 +66,10 @@ const $datasetUrlPane = document.getElementById("datasetUrlPane");
 const $themeSelect = document.getElementById("themeSelect");
 const $filterMin = document.getElementById("filterMin");
 const $filterMax = document.getElementById("filterMax");
+const $markColor = document.getElementById("markColor");
+const $editMark = document.getElementById("editMark");
+const $deleteMark = document.getElementById("deleteMark");
+const $clearMarks = document.getElementById("clearMarks");
 const $sidebarToggleHandle = document.getElementById("sidebarToggleHandle");
 const $status = document.getElementById("status");
 const $selectedAttributeLabel = document.getElementById("selectedAttributeLabel");
@@ -172,6 +181,173 @@ function setStatus(msg) {
   $status.textContent = msg;
   const w = state.windows.find((x) => x.id === state.activeWindowId);
   if (w) w.status = msg;
+}
+
+function plotMetrics() {
+  const rect = $chart.getBoundingClientRect();
+  const padding = { left: 74, right: 18, top: 20, bottom: 56 };
+  const plotW = rect.width - padding.left - padding.right;
+  const plotH = rect.height - padding.top - padding.bottom;
+  return { rect, padding, plotW, plotH };
+}
+
+function nearestTimestamp(target) {
+  if (!Array.isArray(state.times) || state.times.length === 0) return null;
+  let idx = Math.min(binarySearchTimes(target), state.times.length - 1);
+  if (idx > 0) {
+    const left = state.times[idx - 1];
+    const right = state.times[idx];
+    if (Math.abs(target - left) <= Math.abs(right - target)) idx -= 1;
+  }
+  return state.times[idx];
+}
+
+function marksInView(domain, metrics) {
+  const { padding, plotW } = metrics;
+  if (!domain || !Number.isFinite(plotW) || plotW <= 0) return [];
+  const span = domain.end - domain.start || 1;
+  return state.marks
+    .filter((m) => m.time >= domain.start && m.time <= domain.end)
+    .map((m, i) => ({
+      ...m,
+      order: i + 1,
+      x: padding.left + ((m.time - domain.start) / span) * plotW,
+    }));
+}
+
+function hitTestMark(x, y) {
+  const domain = computeDomain();
+  if (!domain) return null;
+  const m = plotMetrics();
+  if (x < m.padding.left || x > m.padding.left + m.plotW || y < m.padding.top || y > m.padding.top + m.plotH) return null;
+  const marks = marksInView(domain, m);
+  const threshold = 6;
+  for (let i = 0; i < marks.length; i += 1) {
+    if (Math.abs(x - marks[i].x) <= threshold) return marks[i];
+  }
+  return null;
+}
+
+function updateMarkButtons() {
+  const mark = state.marks.find((m) => m.id === state.selectedMarkId);
+  const hasSelected = Boolean(mark);
+  if ($editMark) $editMark.disabled = !hasSelected;
+  if ($deleteMark) $deleteMark.disabled = !hasSelected;
+  if ($markColor) {
+    $markColor.value = hasSelected ? (mark.color || state.markDraftColor) : state.markDraftColor;
+  }
+}
+
+function drawMarkHoverText(mark, x, topY) {
+  if (!mark || !mark.text) return;
+  const padX = 8;
+  const h = 20;
+  const text = mark.text;
+  octx.font = "12px var(--font-sans)";
+  const w = Math.min(260, Math.max(70, Math.ceil(octx.measureText(text).width) + padX * 2));
+  const left = Math.max(8, Math.min(x - w / 2, $overlay.clientWidth - w - 8));
+  const y = Math.max(8, topY);
+  octx.fillStyle = getCSSVar("--tooltip-bg", "#0b0f16");
+  octx.strokeStyle = getCSSVar("--tooltip-border", "#3a455d");
+  octx.lineWidth = 1;
+  octx.fillRect(left, y, w, h);
+  octx.strokeRect(left, y, w, h);
+  octx.fillStyle = getCSSVar("--text", "#e6e8ef");
+  octx.textAlign = "left";
+  octx.textBaseline = "middle";
+  const clipped = text.length > 60 ? `${text.slice(0, 57)}...` : text;
+  octx.fillText(clipped, left + padX, y + h / 2);
+}
+
+function drawMarks() {
+  if (state.times.length === 0 || state.marks.length === 0) return;
+  const domain = computeDomain();
+  if (!domain) return;
+  const m = plotMetrics();
+  const marks = marksInView(domain, m);
+  marks.forEach((mark) => {
+    const selected = mark.id === state.selectedMarkId;
+    octx.strokeStyle = mark.color || "#ff9f0a";
+    octx.lineWidth = selected ? 2 : 1.25;
+    octx.setLineDash([6, 5]);
+    octx.beginPath();
+    octx.moveTo(mark.x, m.padding.top);
+    octx.lineTo(mark.x, m.padding.top + m.plotH);
+    octx.stroke();
+    octx.setLineDash([]);
+    const tag = `M${mark.order}`;
+    octx.font = "11px var(--font-mono)";
+    const tw = Math.ceil(octx.measureText(tag).width) + 10;
+    const tx = Math.max(4, Math.min(mark.x - tw / 2, m.rect.width - tw - 4));
+    const ty = m.padding.top + 4;
+    octx.fillStyle = mark.color || "#ff9f0a";
+    octx.fillRect(tx, ty, tw, 16);
+    octx.fillStyle = "#111";
+    octx.textAlign = "left";
+    octx.textBaseline = "middle";
+    octx.fillText(tag, tx + 5, ty + 8);
+    if (mark.id === state.hoveredMarkId) drawMarkHoverText(mark, mark.x, ty + 20);
+  });
+}
+
+function addMarkAtX(x) {
+  const domain = computeDomain();
+  if (!domain) return;
+  const m = plotMetrics();
+  if (x < m.padding.left || x > m.padding.left + m.plotW) return;
+  const t = domain.start + ((x - m.padding.left) / (m.plotW || 1)) * (domain.end - domain.start);
+  const nearest = nearestTimestamp(t);
+  if (!Number.isFinite(nearest)) return;
+  const existing = state.marks.find((mk) => mk.time === nearest);
+  if (existing) {
+    state.selectedMarkId = existing.id;
+    updateMarkButtons();
+    redrawOverlay();
+    return;
+  }
+  const note = window.prompt("Mark note (optional)", "") || "";
+  const mark = {
+    id: `mk-${state.markSeq++}`,
+    time: nearest,
+    text: note.trim(),
+    color: state.markDraftColor || "#ff9f0a",
+  };
+  state.marks.push(mark);
+  state.marks.sort((a, b) => a.time - b.time);
+  state.selectedMarkId = mark.id;
+  state.markDraftColor = mark.color;
+  updateMarkButtons();
+  redrawOverlay();
+}
+
+function editSelectedMark() {
+  const mark = state.marks.find((m) => m.id === state.selectedMarkId);
+  if (!mark) return;
+  const nextText = window.prompt("Edit mark note", mark.text || "");
+  if (nextText === null) return;
+  mark.text = nextText.trim();
+  updateMarkButtons();
+  redrawOverlay();
+}
+
+function deleteSelectedMark() {
+  if (!state.selectedMarkId) return;
+  const before = state.marks.length;
+  state.marks = state.marks.filter((m) => m.id !== state.selectedMarkId);
+  if (state.marks.length !== before) {
+    state.selectedMarkId = null;
+    updateMarkButtons();
+    redrawOverlay();
+  }
+}
+
+function clearAllMarks() {
+  if (state.marks.length === 0) return;
+  state.marks = [];
+  state.selectedMarkId = null;
+  state.hoveredMarkId = null;
+  updateMarkButtons();
+  redrawOverlay();
 }
 
 function chooseLargeLoadAction(totalSelected) {
@@ -742,6 +918,11 @@ function applyMeta(data) {
   buildAttributeModel();
   resetDataState();
   state.filter = { min: null, max: null };
+  state.marks = [];
+  state.markSeq = 1;
+  state.selectedMarkId = null;
+  state.hoveredMarkId = null;
+  updateMarkButtons();
 
   $filePath.textContent = state.file;
 
@@ -1137,6 +1318,8 @@ function flushPointerMove() {
   const p = pointerMovePending;
   pointerMovePending = null;
   hoverPoint = { x: p.x, y: p.y };
+  const hit = hitTestMark(p.x, p.y);
+  state.hoveredMarkId = hit ? hit.id : null;
   if (dragStart) dragCurrentX = p.x;
   if (tooltipIdleTimer) {
     window.clearTimeout(tooltipIdleTimer);
@@ -1144,6 +1327,9 @@ function flushPointerMove() {
   }
   tooltipIdlePoint = { x: p.x, y: p.y };
   if (dragStart) {
+    $tooltip.style.display = "none";
+    tooltipSeriesIndex = -1;
+  } else if (state.hoveredMarkId) {
     $tooltip.style.display = "none";
     tooltipSeriesIndex = -1;
   } else {
@@ -1191,6 +1377,7 @@ function drawCrosshair(x, y) {
 function redrawOverlay() {
   const rect = $overlay.getBoundingClientRect();
   octx.clearRect(0, 0, rect.width, rect.height);
+  drawMarks();
   if (hoverPoint) drawCrosshair(hoverPoint.x, hoverPoint.y);
   if (dragStart && Number.isFinite(dragCurrentX)) drawSelection(dragStart.x, dragCurrentX);
 }
@@ -1377,6 +1564,19 @@ document.getElementById("closeWindow").addEventListener("click", () => closeActi
 document.getElementById("openManual").addEventListener("click", () => {
   window.open("/manual", "_blank", "noopener,noreferrer");
 });
+if ($editMark) $editMark.addEventListener("click", () => editSelectedMark());
+if ($deleteMark) $deleteMark.addEventListener("click", () => deleteSelectedMark());
+if ($clearMarks) $clearMarks.addEventListener("click", () => clearAllMarks());
+if ($markColor) {
+  $markColor.addEventListener("input", () => {
+    state.markDraftColor = $markColor.value;
+    const mark = state.marks.find((m) => m.id === state.selectedMarkId);
+    if (mark) {
+      mark.color = $markColor.value;
+      redrawOverlay();
+    }
+  });
+}
 
 document.getElementById("loadSeries").addEventListener("click", () => loadSeries());
 document.getElementById("screenshot").addEventListener("click", () => downloadScreenshot());
@@ -1462,6 +1662,18 @@ $overlay.addEventListener("mousedown", (e) => {
   tooltipIdlePoint = null;
   $tooltip.style.display = "none";
   tooltipSeriesIndex = -1;
+  if (e.shiftKey) {
+    addMarkAtX(e.offsetX);
+    return;
+  }
+  const hit = hitTestMark(e.offsetX, e.offsetY);
+  if (hit) {
+    state.selectedMarkId = hit.id;
+    state.hoveredMarkId = hit.id;
+    updateMarkButtons();
+    redrawOverlay();
+    return;
+  }
   dragStart = { x: e.offsetX };
   dragCurrentX = e.offsetX;
   hoverPoint = { x: e.offsetX, y: e.offsetY };
@@ -1496,7 +1708,15 @@ $overlay.addEventListener("mouseup", (e) => {
   zoomToRange(tStart, tEnd);
 });
 
-$overlay.addEventListener("dblclick", () => {
+$overlay.addEventListener("dblclick", (e) => {
+  const hit = hitTestMark(e.offsetX, e.offsetY);
+  if (hit) {
+    state.selectedMarkId = hit.id;
+    state.hoveredMarkId = hit.id;
+    updateMarkButtons();
+    editSelectedMark();
+    return;
+  }
   if (!isZoomed()) return;
   zoomOut();
 });
@@ -1504,6 +1724,7 @@ $overlay.addEventListener("dblclick", () => {
 $overlay.addEventListener("mouseleave", (e) => {
   if (e.relatedTarget === $tooltip || $tooltip.contains(e.relatedTarget)) return;
   hoverPoint = null;
+  state.hoveredMarkId = null;
   $tooltip.style.display = "none";
   tooltipSeriesIndex = -1;
   if (tooltipIdleTimer) {
@@ -1534,6 +1755,15 @@ $tooltip.addEventListener("mouseleave", () => {
 });
 
 window.addEventListener("resize", drawChart);
+window.addEventListener("keydown", (e) => {
+  if ((e.key === "Delete" || e.key === "Backspace") && state.selectedMarkId) {
+    e.preventDefault();
+    deleteSelectedMark();
+  } else if ((e.key === "e" || e.key === "E") && state.selectedMarkId) {
+    e.preventDefault();
+    editSelectedMark();
+  }
+});
 
 if ($themeSelect) {
   $themeSelect.addEventListener("change", () => {
@@ -1549,4 +1779,5 @@ if ($sidebarToggleHandle) {
 initTheme();
 initSidebarState();
 setDatasetMode("file");
+updateMarkButtons();
 loadMeta().then(() => loadSeries());
