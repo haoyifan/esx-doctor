@@ -3,8 +3,10 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/rand"
 	"embed"
 	"encoding/csv"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -46,21 +48,127 @@ type DataFile struct {
 	TimeLayout      string
 }
 
-type AppState struct {
-	mu sync.RWMutex
-	df *DataFile
+type Session struct {
+	mu       sync.RWMutex
+	df       *DataFile
+	lastSeen time.Time
 }
 
-func (s *AppState) Get() *DataFile {
+func (s *Session) Get() *DataFile {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.df
 }
 
-func (s *AppState) Replace(df *DataFile) {
+func (s *Session) Touch(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.lastSeen = now
+}
+
+func (s *Session) LastSeen() time.Time {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.lastSeen
+}
+
+func (s *Session) Replace(df *DataFile) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old := s.df
 	s.df = df
+	if old != nil && old.OwnedTemp && old.Path != "" && (df == nil || old.Path != df.Path) {
+		_ = os.Remove(old.Path)
+	}
+}
+
+func (s *Session) Close() {
+	s.Replace(nil)
+}
+
+type SessionStore struct {
+	mu         sync.RWMutex
+	sessions   map[string]*Session
+	defaultDF  *DataFile
+	ttl        time.Duration
+	cookieName string
+}
+
+func NewSessionStore(defaultDF *DataFile, ttl time.Duration) *SessionStore {
+	return &SessionStore{
+		sessions:   make(map[string]*Session),
+		defaultDF:  defaultDF,
+		ttl:        ttl,
+		cookieName: "esx_doctor_sid",
+	}
+}
+
+func randomSessionID() string {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("sid-%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b)
+}
+
+func (s *SessionStore) getSessionIDFromRequest(r *http.Request) string {
+	if h := strings.TrimSpace(r.Header.Get("X-ESX-Session-ID")); h != "" {
+		return h
+	}
+	if c, err := r.Cookie(s.cookieName); err == nil {
+		return strings.TrimSpace(c.Value)
+	}
+	return ""
+}
+
+func (s *SessionStore) attachCookie(w http.ResponseWriter, id string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     s.cookieName,
+		Value:    id,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int((24 * time.Hour).Seconds()),
+	})
+}
+
+func (s *SessionStore) SessionForRequest(w http.ResponseWriter, r *http.Request) *Session {
+	id := s.getSessionIDFromRequest(r)
+	now := time.Now()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if id == "" {
+		id = randomSessionID()
+	}
+	sess, ok := s.sessions[id]
+	if !ok {
+		sess = &Session{df: s.defaultDF, lastSeen: now}
+		s.sessions[id] = sess
+	} else {
+		sess.lastSeen = now
+	}
+	s.attachCookie(w, id)
+	return sess
+}
+
+func (s *SessionStore) CleanupExpired() {
+	now := time.Now()
+	var expired []*Session
+
+	s.mu.Lock()
+	for id, sess := range s.sessions {
+		if now.Sub(sess.LastSeen()) > s.ttl {
+			delete(s.sessions, id)
+			expired = append(expired, sess)
+		}
+	}
+	s.mu.Unlock()
+
+	for _, sess := range expired {
+		sess.Close()
+	}
 }
 
 const (
@@ -463,12 +571,19 @@ func main() {
 	} else {
 		log.Printf("no startup CSV found; open one from UI file picker")
 	}
-	state := &AppState{df: df}
+	sessions := NewSessionStore(df, 24*time.Hour)
+	go func() {
+		ticker := time.NewTicker(30 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			sessions.CleanupExpired()
+		}
+	}()
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/meta", func(w http.ResponseWriter, r *http.Request) {
-		current := state.Get()
+		current := sessions.SessionForRequest(w, r).Get()
 		if current == nil {
 			writeJSON(w, http.StatusOK, map[string]any{
 				"columns": []string{},
@@ -524,7 +639,7 @@ func main() {
 			return
 		}
 		newDF.Label = abs
-		state.Replace(newDF)
+		sessions.SessionForRequest(w, r).Replace(newDF)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"file":  newDF.Label,
 			"rows":  newDF.Rows,
@@ -553,7 +668,7 @@ func main() {
 			return
 		}
 
-		state.Replace(newDF)
+		sessions.SessionForRequest(w, r).Replace(newDF)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"file":  newDF.Label,
 			"rows":  newDF.Rows,
@@ -622,7 +737,7 @@ func main() {
 			return
 		}
 
-		state.Replace(newDF)
+		sessions.SessionForRequest(w, r).Replace(newDF)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"file":  newDF.Label,
 			"rows":  newDF.Rows,
@@ -652,7 +767,7 @@ func main() {
 			writeJSON(w, http.StatusBadRequest, SeriesResponse{Error: "no columns selected"})
 			return
 		}
-		current := state.Get()
+		current := sessions.SessionForRequest(w, r).Get()
 		if current == nil {
 			writeJSON(w, http.StatusInternalServerError, SeriesResponse{Error: "no file loaded"})
 			return
@@ -764,7 +879,7 @@ func main() {
 	addr := fmt.Sprintf(":%d", port)
 	log.Printf("esx-doctor listening on %s", addr)
 	log.Printf("open: http://localhost:%d", port)
-	if current := state.Get(); current != nil {
+	if current := df; current != nil {
 		log.Printf("file: %s", current.Label)
 	}
 	if err := http.ListenAndServe(addr, mux); err != nil {

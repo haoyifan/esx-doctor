@@ -51,7 +51,30 @@ const loadSeriesSoftLimit = 10000;
 const tooltipIdleDelayMs = 250;
 const themeStorageKey = "esxDoctorTheme";
 const sidebarStorageKey = "esxDoctorSidebarCollapsed";
+const clientSessionStorageKey = "esxDoctorClientSession";
 const defaultTheme = "midnight";
+
+function getOrCreateClientSessionID() {
+  try {
+    const existing = sessionStorage.getItem(clientSessionStorageKey);
+    if (existing) return existing;
+    const created = (window.crypto && window.crypto.randomUUID)
+      ? window.crypto.randomUUID()
+      : `sid-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    sessionStorage.setItem(clientSessionStorageKey, created);
+    return created;
+  } catch (_err) {
+    return `sid-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+}
+
+const clientSessionID = getOrCreateClientSessionID();
+
+async function apiFetch(input, init = {}) {
+  const headers = new Headers(init.headers || {});
+  headers.set("X-ESX-Session-ID", clientSessionID);
+  return fetch(input, { ...init, headers });
+}
 
 const $search = document.getElementById("search");
 const $reports = document.getElementById("reports");
@@ -1031,7 +1054,7 @@ function applyMeta(data) {
 }
 
 async function loadMeta() {
-  const res = await fetch("/api/meta");
+  const res = await apiFetch("/api/meta");
   const data = await res.json();
   applyMeta(data);
 }
@@ -1047,7 +1070,7 @@ async function openPickedFile() {
   const form = new FormData();
   form.append("file", file);
 
-  const res = await fetch("/api/upload", {
+  const res = await apiFetch("/api/upload", {
     method: "POST",
     body: form,
   });
@@ -1069,7 +1092,7 @@ async function openFromURL() {
   }
   setStatus("Loading CSV from URL...");
   try {
-    const res = await fetch("/api/open-url", {
+    const res = await apiFetch("/api/open-url", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url: raw }),
@@ -1563,7 +1586,7 @@ async function loadSeries() {
     params.append("end", String(state.range.end));
   }
 
-  const res = await fetch(`/api/series?${params.toString()}`);
+  const res = await apiFetch(`/api/series?${params.toString()}`);
   const data = await res.json();
   if (data.error) {
     setStatus(data.error);
