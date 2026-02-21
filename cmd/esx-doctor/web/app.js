@@ -140,6 +140,10 @@ const panDrag = {
 const splitDrag = {
   active: false,
 };
+const markDrag = {
+  active: false,
+  markID: null,
+};
 
 function getCSSVar(name, fallback = "") {
   const value = getComputedStyle(document.body).getPropertyValue(name).trim();
@@ -357,6 +361,23 @@ function addMarkAtX(x) {
   state.selectedMarkId = mark.id;
   state.markDraftColor = mark.color;
   updateMarkButtons();
+  redrawOverlay();
+}
+
+function moveMarkToX(markID, x) {
+  const mark = state.marks.find((m) => m.id === markID);
+  if (!mark) return;
+  const domain = computeDomain();
+  if (!domain) return;
+  const m = plotMetrics();
+  const clampedX = Math.max(m.padding.left, Math.min(x, m.padding.left + m.plotW));
+  const t = domain.start + ((clampedX - m.padding.left) / (m.plotW || 1)) * (domain.end - domain.start);
+  const nearest = nearestTimestamp(t);
+  if (!Number.isFinite(nearest)) return;
+  const conflict = state.marks.find((other) => other.id !== markID && other.time === nearest);
+  if (conflict) return;
+  mark.time = nearest;
+  state.marks.sort((a, b) => a.time - b.time);
   redrawOverlay();
 }
 
@@ -1767,6 +1788,12 @@ window.addEventListener("mouseup", () => {
   document.body.style.userSelect = "";
   drawChart();
 });
+window.addEventListener("mouseup", () => {
+  if (!markDrag.active) return;
+  markDrag.active = false;
+  markDrag.markID = null;
+  document.body.style.userSelect = "";
+});
 
 document.getElementById("resetZoom").addEventListener("click", () => {
   state.view.start = null;
@@ -1795,6 +1822,11 @@ $overlay.addEventListener("mousedown", (e) => {
   if (hit) {
     state.selectedMarkId = hit.id;
     state.hoveredMarkId = hit.id;
+    if (e.button === 0) {
+      markDrag.active = true;
+      markDrag.markID = hit.id;
+      document.body.style.userSelect = "none";
+    }
     updateMarkButtons();
     redrawOverlay();
     return;
@@ -1814,11 +1846,22 @@ $overlay.addEventListener("contextmenu", (e) => {
 });
 
 $overlay.addEventListener("mousemove", (e) => {
+  if (markDrag.active && markDrag.markID) {
+    moveMarkToX(markDrag.markID, e.offsetX);
+    return;
+  }
   pointerMovePending = { x: e.offsetX, y: e.offsetY };
   if (!pointerMoveRAF) pointerMoveRAF = window.requestAnimationFrame(flushPointerMove);
 });
 
 $overlay.addEventListener("mouseup", (e) => {
+  if (markDrag.active) {
+    if (markDrag.markID) moveMarkToX(markDrag.markID, e.offsetX);
+    markDrag.active = false;
+    markDrag.markID = null;
+    document.body.style.userSelect = "";
+    return;
+  }
   if (!dragStart) return;
 
   const rect = $chart.getBoundingClientRect();
@@ -1856,6 +1899,11 @@ $overlay.addEventListener("dblclick", (e) => {
 
 $overlay.addEventListener("mouseleave", (e) => {
   if (e.relatedTarget === $tooltip || $tooltip.contains(e.relatedTarget)) return;
+  if (markDrag.active) {
+    markDrag.active = false;
+    markDrag.markID = null;
+    document.body.style.userSelect = "";
+  }
   hoverPoint = null;
   state.hoveredMarkId = null;
   $tooltip.style.display = "none";
