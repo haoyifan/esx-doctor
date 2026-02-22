@@ -150,7 +150,6 @@ Direct URL:
   - Aggressive NUMA migration pattern
   - High ready time
   - High co-stop time
-  - Sustained storage latency
   - Exclusive affinity enabled
 
 ## Troubleshooting

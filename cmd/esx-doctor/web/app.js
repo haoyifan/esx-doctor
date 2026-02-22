@@ -589,6 +589,10 @@ function renderDiagnosticFindings() {
     const summary = document.createElement("div");
     summary.className = "diag-finding-meta";
     summary.textContent = f.summary || "";
+    const instances = document.createElement("div");
+    instances.className = "diag-finding-meta";
+    const listed = Array.isArray(f.instances) ? f.instances.filter(Boolean) : [];
+    instances.textContent = listed.length > 0 ? `Instances: ${listed.join(", ")}` : "Instances: n/a";
     const actions = document.createElement("div");
     actions.className = "diag-finding-actions";
     const jump = document.createElement("button");
@@ -599,6 +603,7 @@ function renderDiagnosticFindings() {
     card.appendChild(title);
     card.appendChild(meta);
     card.appendChild(summary);
+    card.appendChild(instances);
     card.appendChild(actions);
     frag.appendChild(card);
   });
