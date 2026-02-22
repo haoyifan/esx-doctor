@@ -1,0 +1,13 @@
+{
+  "id": "memory.overcommit_high.v1",
+  "name": "High Memory Overcommit",
+  "description": "Detect sustained high Memory Overcommit (1 Minute Avg).",
+  "enabled": true,
+  "severity": "high",
+  "detector": {
+    "type": "memory_overcommit_high",
+    "threshold": 100.0,
+    "min_consecutive": 6,
+    "include_attribute_equals": ["Memory: Memory Overcommit (1 Minute Avg)"]
+  }
+}

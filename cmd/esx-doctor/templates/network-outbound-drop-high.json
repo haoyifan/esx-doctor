@@ -1,0 +1,13 @@
+{
+  "id": "network.outbound_drop_high.v1",
+  "name": "High Outbound Packet Drops",
+  "description": "Detect sustained high % Outbound Packets Dropped on network ports.",
+  "enabled": true,
+  "severity": "high",
+  "detector": {
+    "type": "network_outbound_drop_high",
+    "threshold": 1.0,
+    "min_consecutive": 6,
+    "include_attribute_equals": ["Network Port: % Outbound Packets Dropped"]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "storage.adapter_driver_latency_high.v1",
+  "name": "High Adapter Driver Latency",
+  "description": "Detect sustained high Average Driver MilliSec/Command on physical disk adapters.",
+  "enabled": true,
+  "severity": "high",
+  "detector": {
+    "type": "disk_adapter_driver_latency_high",
+    "threshold": 25.0,
+    "min_consecutive": 6,
+    "include_object_equals": ["Physical Disk Adapter"],
+    "include_attribute_equals": ["Physical Disk Adapter: Average Driver MilliSec/Command"]
+  }
+}

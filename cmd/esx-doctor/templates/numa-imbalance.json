@@ -1,0 +1,14 @@
+{
+  "id": "numa.processor_imbalance.v1",
+  "name": "NUMA Processor Imbalance",
+  "description": "Detect sustained imbalance where one NUMA node is very busy while another is idle.",
+  "enabled": true,
+  "severity": "high",
+  "detector": {
+    "type": "numa_imbalance",
+    "high_threshold": 80.0,
+    "low_threshold": 20.0,
+    "min_gap": 45.0,
+    "min_consecutive": 6
+  }
+}

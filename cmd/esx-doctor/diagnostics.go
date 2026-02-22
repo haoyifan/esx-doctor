@@ -30,10 +30,14 @@ type DiagnosticTemplate struct {
 type DetectorTemplate struct {
 	Type                    string   `json:"type"`
 	Threshold               float64  `json:"threshold,omitempty"`
+	Comparison              string   `json:"comparison,omitempty"`
 	MinConsecutive          int      `json:"min_consecutive,omitempty"`
 	MinSwitches             int      `json:"min_switches,omitempty"`
 	MinGap                  float64  `json:"min_gap,omitempty"`
+	LowThreshold            float64  `json:"low_threshold,omitempty"`
+	HighThreshold           float64  `json:"high_threshold,omitempty"`
 	IncludeAttributeEquals  []string `json:"include_attribute_equals,omitempty"`
+	IncludeObjectEquals     []string `json:"include_object_equals,omitempty"`
 	ExcludeInstanceContains []string `json:"exclude_instance_contains,omitempty"`
 	ExcludeInstanceRegex    []string `json:"exclude_instance_regex,omitempty"`
 }
@@ -177,6 +181,7 @@ type thresholdProcessor struct {
 	template       DiagnosticTemplate
 	reportKey      string
 	attributeLabel string
+	compareLess    bool
 	indexes        []int
 	labels         []string
 	threshold      float64
@@ -194,12 +199,16 @@ func (p *thresholdProcessor) onRow(ts time.Time, record []string) {
 			p.reset(i, ts)
 			continue
 		}
-		if v > p.threshold {
+		matched := v > p.threshold
+		if p.compareLess {
+			matched = v < p.threshold
+		}
+		if matched {
 			s := &p.states[i]
 			if s.currLen == 0 {
 				s.currStart = ts
 				s.currPeak = v
-			} else if v > s.currPeak {
+			} else if (!p.compareLess && v > s.currPeak) || (p.compareLess && v < s.currPeak) {
 				s.currPeak = v
 			}
 			s.currLen++
@@ -231,7 +240,11 @@ func (p *thresholdProcessor) finalize() []DiagnosticFinding {
 		if s.bestLen < p.minConsecutive {
 			continue
 		}
-		summary := fmt.Sprintf("Sustained threshold breach: peak %.2f over %d consecutive samples.", s.bestPeak, s.bestLen)
+		compWord := "above"
+		if p.compareLess {
+			compWord = "below"
+		}
+		summary := fmt.Sprintf("Sustained threshold breach: peak %.2f stayed %s threshold %.2f for %d consecutive samples.", s.bestPeak, compWord, p.threshold, s.bestLen)
 		f := DiagnosticFinding{
 			TemplateID:     p.template.ID,
 			TemplateName:   p.template.Name,
@@ -254,6 +267,104 @@ func (p *thresholdProcessor) finalize() []DiagnosticFinding {
 		findings = findings[:20]
 	}
 	return findings
+}
+
+type rangeImbalanceProcessor struct {
+	template       DiagnosticTemplate
+	reportKey      string
+	attributeLabel string
+	indexes        []int
+	labels         []string
+	highThreshold  float64
+	lowThreshold   float64
+	minGap         float64
+	minConsecutive int
+	currLen        int
+	currStart      time.Time
+	currHigh       string
+	currLow        string
+	bestLen        int
+	bestStart      time.Time
+	bestEnd        time.Time
+	bestHigh       string
+	bestLow        string
+}
+
+func (p *rangeImbalanceProcessor) onRow(ts time.Time, record []string) {
+	bestVal := -math.MaxFloat64
+	minVal := math.MaxFloat64
+	bestIdx := -1
+	minIdx := -1
+	valid := 0
+	for i, idx := range p.indexes {
+		if idx < 0 || idx >= len(record) {
+			continue
+		}
+		v, ok := parseFloatValue(record[idx])
+		if !ok || !NumberFinite(v) {
+			continue
+		}
+		valid++
+		if v > bestVal {
+			bestVal = v
+			bestIdx = i
+		}
+		if v < minVal {
+			minVal = v
+			minIdx = i
+		}
+	}
+	if valid < 2 {
+		p.reset(ts)
+		return
+	}
+	if bestVal >= p.highThreshold && minVal <= p.lowThreshold && (bestVal-minVal) >= p.minGap {
+		if p.currLen == 0 {
+			p.currStart = ts
+			p.currHigh = p.labels[bestIdx]
+			p.currLow = p.labels[minIdx]
+		}
+		p.currLen++
+		return
+	}
+	p.reset(ts)
+}
+
+func (p *rangeImbalanceProcessor) reset(ts time.Time) {
+	if p.currLen > p.bestLen {
+		p.bestLen = p.currLen
+		p.bestStart = p.currStart
+		p.bestEnd = ts
+		p.bestHigh = p.currHigh
+		p.bestLow = p.currLow
+	}
+	p.currLen = 0
+	p.currHigh = ""
+	p.currLow = ""
+}
+
+func (p *rangeImbalanceProcessor) finalize() []DiagnosticFinding {
+	p.reset(time.Time{})
+	if p.bestLen < p.minConsecutive {
+		return nil
+	}
+	out := DiagnosticFinding{
+		TemplateID:     p.template.ID,
+		TemplateName:   p.template.Name,
+		Title:          p.template.Name,
+		Severity:       p.template.Severity,
+		ReportKey:      p.reportKey,
+		AttributeLabel: p.attributeLabel,
+		Instances:      []string{p.bestHigh, p.bestLow},
+		Summary:        fmt.Sprintf("Persistent imbalance: one node stayed high (>=%.1f%%) while another stayed low (<=%.1f%%) for %d samples.", p.highThreshold, p.lowThreshold, p.bestLen),
+	}
+	if !p.bestStart.IsZero() {
+		out.Start = p.bestStart.UnixMilli()
+	}
+	if !p.bestEnd.IsZero() {
+		out.End = p.bestEnd.UnixMilli()
+	}
+	return []DiagnosticFinding{out}
 }
 
 type numaZigzagProcessor struct {
@@ -451,16 +562,29 @@ func matchesIncludedAttribute(label string, includes []string) bool {
 	return false
 }
 
+func matchesIncludedObject(object string, includes []string) bool {
+	if len(includes) == 0 {
+		return true
+	}
+	for _, inc := range includes {
+		if strings.EqualFold(strings.TrimSpace(inc), strings.TrimSpace(object)) {
+			return true
+		}
+	}
+	return false
+}
+
 func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowProcessor {
 	var processors []rowProcessor
 	for _, t := range templates {
 		switch t.Detector.Type {
-		case "high_ready", "high_costop", "storage_latency":
+		case "high_ready", "high_costop", "storage_latency", "low_numa_local", "memory_overcommit_high", "network_outbound_drop_high", "disk_adapter_failed_reads_high", "disk_adapter_driver_latency_high":
 			var idxs []int
 			var labels []string
 			attribute := ""
 			reportKey := "cpu"
 			threshold := t.Detector.Threshold
+			compareLess := strings.EqualFold(strings.TrimSpace(t.Detector.Comparison), "less")
 			minConsecutive := t.Detector.MinConsecutive
 			if minConsecutive <= 0 {
 				minConsecutive = 6
@@ -473,6 +597,17 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 					threshold = 3
 				case "storage_latency":
 					threshold = 20
+				case "low_numa_local":
+					threshold = 85
+					compareLess = true
+				case "memory_overcommit_high":
+					threshold = 100
+				case "network_outbound_drop_high":
+					threshold = 1
+				case "disk_adapter_failed_reads_high":
+					threshold = 5
+				case "disk_adapter_driver_latency_high":
+					threshold = 30
 				}
 			}
 
@@ -489,11 +624,29 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 				case "storage_latency":
 					match = strings.Contains(l, "latency")
 					reportKey = "storage"
+				case "low_numa_local":
+					match = strings.Contains(l, "group memory: numa % local")
+					reportKey = "numa"
+				case "memory_overcommit_high":
+					match = strings.Contains(l, "memory: memory overcommit (1 minute avg)")
+					reportKey = "memory"
+				case "network_outbound_drop_high":
+					match = strings.Contains(l, "network port: % outbound packets dropped")
+					reportKey = "network"
+				case "disk_adapter_failed_reads_high":
+					match = strings.Contains(l, "failed reads/sec")
+					reportKey = "storage"
+				case "disk_adapter_driver_latency_high":
+					match = strings.Contains(l, "average driver millisec/command")
+					reportKey = "storage"
 				}
 				if !match {
 					continue
 				}
 				if !matchesIncludedAttribute(c.AttributeLabel, t.Detector.IncludeAttributeEquals) {
+					continue
+				}
+				if !matchesIncludedObject(c.Object, t.Detector.IncludeObjectEquals) {
 					continue
 				}
 				if excludedByName(c.Instance, t.Detector.ExcludeInstanceContains) {
@@ -513,6 +666,7 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 					template:       t,
 					reportKey:      reportKey,
 					attributeLabel: attribute,
+					compareLess:    compareLess,
 					indexes:        idxs,
 					labels:         labels,
 					threshold:      threshold,
@@ -564,6 +718,44 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 					hitCounts: make([]int, len(idxs)),
 					firstSeen: make([]time.Time, len(idxs)),
 					lastSeen:  make([]time.Time, len(idxs)),
+				})
+			}
+		case "numa_imbalance":
+			var idxs []int
+			var labels []string
+			for _, c := range cols {
+				if strings.EqualFold(c.Object, "Numa Node") && strings.EqualFold(c.Counter, "% Processor Time") {
+					idxs = append(idxs, c.Idx)
+					labels = append(labels, "Numa Node "+c.Instance)
+				}
+			}
+			if len(idxs) >= 2 {
+				high := t.Detector.HighThreshold
+				if high <= 0 {
+					high = 80
+				}
+				low := t.Detector.LowThreshold
+				if low <= 0 {
+					low = 20
+				}
+				minGap := t.Detector.MinGap
+				if minGap <= 0 {
+					minGap = 40
+				}
+				minConsecutive := t.Detector.MinConsecutive
+				if minConsecutive <= 0 {
+					minConsecutive = 6
+				}
+				processors = append(processors, &rangeImbalanceProcessor{
+					template:       t,
+					reportKey:      "numa",
+					attributeLabel: "Numa Node: % Processor Time",
+					indexes:        idxs,
+					labels:         labels,
+					highThreshold:  high,
+					lowThreshold:   low,
+					minGap:         minGap,
+					minConsecutive: minConsecutive,
 				})
 			}
 		}

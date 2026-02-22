@@ -1,0 +1,14 @@
+{
+  "id": "numa.group_local_memory_low.v1",
+  "name": "Low NUMA Local Memory",
+  "description": "Detect groups with sustained low Numa % Local (remote memory pressure).",
+  "enabled": true,
+  "severity": "high",
+  "detector": {
+    "type": "low_numa_local",
+    "comparison": "less",
+    "threshold": 85.0,
+    "min_consecutive": 8,
+    "include_attribute_equals": ["Group Memory: Numa % Local"]
+  }
+}
