@@ -395,6 +395,7 @@ func (df *DataFile) extractSeries(cols []int, start, end time.Time, maxPoints in
 		Series: make([]SeriesPayload, 0, len(cols)),
 	}
 	seriesMap := make([][]int, len(cols))
+	validCounts := make([]int, 0, len(cols))
 	for i, idx := range cols {
 		name := ""
 		if idx >= 0 && idx < len(df.Columns) {
@@ -402,6 +403,7 @@ func (df *DataFile) extractSeries(cols []int, start, end time.Time, maxPoints in
 		}
 		resp.Series = append(resp.Series, SeriesPayload{Name: name})
 		seriesMap[i] = []int{len(resp.Series) - 1}
+		validCounts = append(validCounts, 0)
 	}
 
 	estimated := df.estimateRows(start, end)
@@ -468,7 +470,7 @@ func (df *DataFile) extractSeries(cols []int, start, end time.Time, maxPoints in
 			resp.Times = append(resp.Times, timestamp.UnixMilli())
 			currentPos := len(resp.Times) - 1
 			for si := range resp.Series {
-				resp.Series[si].Values = append(resp.Series[si].Values, math.NaN())
+				resp.Series[si].Values = append(resp.Series[si].Values, 0)
 			}
 
 			for i, idx := range cols {
@@ -494,19 +496,22 @@ func (df *DataFile) extractSeries(cols []int, start, end time.Time, maxPoints in
 							}
 							sp := SeriesPayload{Name: name, Values: make([]float64, currentPos+1)}
 							for x := 0; x <= currentPos; x++ {
-								sp.Values[x] = math.NaN()
+								sp.Values[x] = 0
 							}
 							resp.Series = append(resp.Series, sp)
 							targets = append(targets, len(resp.Series)-1)
+							validCounts = append(validCounts, 0)
 						}
 						seriesMap[i] = targets
 						for vi, val := range values {
 							resp.Series[targets[vi]].Values[currentPos] = val
+							validCounts[targets[vi]]++
 						}
 						continue
 					}
 					if v, ok := parseFloatValue(raw); ok {
 						resp.Series[targets[0]].Values[currentPos] = v
+						validCounts[targets[0]]++
 					}
 				}
 			}
@@ -523,6 +528,13 @@ func (df *DataFile) extractSeries(cols []int, start, end time.Time, maxPoints in
 		resp.Start = resp.Times[0]
 		resp.End = resp.Times[len(resp.Times)-1]
 	}
+	filtered := make([]SeriesPayload, 0, len(resp.Series))
+	for i, s := range resp.Series {
+		if i < len(validCounts) && validCounts[i] > 0 {
+			filtered = append(filtered, s)
+		}
+	}
+	resp.Series = filtered
 	resp.Rows = kept
 	return resp, nil
 }
