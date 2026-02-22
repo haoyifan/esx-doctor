@@ -9,6 +9,11 @@
 `esx-doctor` is built for one job: help you move from a huge batch CSV to a clear performance story quickly.
 You load a file, pick one metric, compare instances, zoom around the timeline, and use diagnostics templates to surface likely problems.
 
+## Disclaimer
+
+This is a personal side project created on personal time. It is not an official VMware product,
+is not endorsed by VMware, and does not represent VMware product commitments or support.
+
 ## Why this tool exists
 
 When esxtop data is large, most of the time goes to searching, filtering, and correlating across metrics.
