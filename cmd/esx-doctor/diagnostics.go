@@ -27,11 +27,12 @@ type DiagnosticTemplate struct {
 }
 
 type DetectorTemplate struct {
-	Type           string  `json:"type"`
-	Threshold      float64 `json:"threshold,omitempty"`
-	MinConsecutive int     `json:"min_consecutive,omitempty"`
-	MinSwitches    int     `json:"min_switches,omitempty"`
-	MinGap         float64 `json:"min_gap,omitempty"`
+	Type                    string   `json:"type"`
+	Threshold               float64  `json:"threshold,omitempty"`
+	MinConsecutive          int      `json:"min_consecutive,omitempty"`
+	MinSwitches             int      `json:"min_switches,omitempty"`
+	MinGap                  float64  `json:"min_gap,omitempty"`
+	ExcludeInstanceContains []string `json:"exclude_instance_contains,omitempty"`
 }
 
 type DiagnosticTemplateMeta struct {
@@ -398,6 +399,23 @@ func containsAnyFold(s string, subs ...string) bool {
 	return false
 }
 
+func excludedByName(name string, excludes []string) bool {
+	if len(excludes) == 0 {
+		return false
+	}
+	n := strings.ToLower(name)
+	for _, ex := range excludes {
+		ex = strings.TrimSpace(strings.ToLower(ex))
+		if ex == "" {
+			continue
+		}
+		if strings.Contains(n, ex) {
+			return true
+		}
+	}
+	return false
+}
+
 func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowProcessor {
 	var processors []rowProcessor
 	for _, t := range templates {
@@ -438,6 +456,9 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 					reportKey = "storage"
 				}
 				if !match {
+					continue
+				}
+				if excludedByName(c.Instance, t.Detector.ExcludeInstanceContains) {
 					continue
 				}
 				idxs = append(idxs, c.Idx)

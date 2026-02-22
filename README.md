@@ -144,6 +144,7 @@ Direct URL:
 
 - Built-in templates live in `cmd/esx-doctor/templates`.
 - You can select templates in the UI diagnostics panel and run them on demand.
+- Templates can exclude noisy instances by name using `detector.exclude_instance_contains`.
 - Current starter templates include:
   - Aggressive NUMA migration pattern
   - High ready time
