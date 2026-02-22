@@ -32,6 +32,9 @@ const state = {
   markDraftColor: "#ff9f0a",
   contextMarkId: null,
   contextMenuX: null,
+  diagnosticsTemplates: [],
+  selectedDiagnosticTemplateIds: new Set(),
+  diagnosticsFindings: [],
 };
 
 const palette = [
@@ -91,6 +94,10 @@ const $datasetUrlPane = document.getElementById("datasetUrlPane");
 const $themeSelect = document.getElementById("themeSelect");
 const $filterMin = document.getElementById("filterMin");
 const $filterMax = document.getElementById("filterMax");
+const $diagTemplates = document.getElementById("diagTemplates");
+const $runDiagnostics = document.getElementById("runDiagnostics");
+const $diagFindings = document.getElementById("diagFindings");
+const $diagRunMeta = document.getElementById("diagRunMeta");
 const $sidebarToggleHandle = document.getElementById("sidebarToggleHandle");
 const $markMenu = document.getElementById("markMenu");
 const $markMenuAdd = document.getElementById("markMenuAdd");
@@ -519,6 +526,154 @@ function setDatasetMode(mode) {
   if ($datasetTabUrl) $datasetTabUrl.classList.toggle("active", useURL);
   if ($datasetFilePane) $datasetFilePane.classList.toggle("hidden", useURL);
   if ($datasetUrlPane) $datasetUrlPane.classList.toggle("hidden", !useURL);
+}
+
+function formatSeverity(s) {
+  const v = (s || "").trim().toLowerCase();
+  if (!v) return "medium";
+  return v;
+}
+
+function renderDiagnosticTemplates() {
+  if (!$diagTemplates) return;
+  $diagTemplates.innerHTML = "";
+  if (!state.diagnosticsTemplates || state.diagnosticsTemplates.length === 0) {
+    $diagTemplates.textContent = "No templates available.";
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  state.diagnosticsTemplates.forEach((t) => {
+    const label = document.createElement("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = state.selectedDiagnosticTemplateIds.has(t.id);
+    cb.addEventListener("change", () => {
+      if (cb.checked) state.selectedDiagnosticTemplateIds.add(t.id);
+      else state.selectedDiagnosticTemplateIds.delete(t.id);
+    });
+    const textWrap = document.createElement("div");
+    const title = document.createElement("div");
+    title.textContent = `${t.name} [${formatSeverity(t.severity)}]`;
+    const desc = document.createElement("span");
+    desc.textContent = t.description || "";
+    textWrap.appendChild(title);
+    textWrap.appendChild(desc);
+    label.appendChild(cb);
+    label.appendChild(textWrap);
+    frag.appendChild(label);
+  });
+  $diagTemplates.appendChild(frag);
+}
+
+function renderDiagnosticFindings() {
+  if (!$diagFindings) return;
+  $diagFindings.innerHTML = "";
+  if (!state.diagnosticsFindings || state.diagnosticsFindings.length === 0) {
+    const m = document.createElement("div");
+    m.className = "muted";
+    m.textContent = "No findings.";
+    $diagFindings.appendChild(m);
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  state.diagnosticsFindings.forEach((f) => {
+    const card = document.createElement("div");
+    card.className = "diag-finding";
+    const title = document.createElement("div");
+    title.className = "diag-finding-title";
+    title.textContent = `${f.title} (${formatSeverity(f.severity)})`;
+    const meta = document.createElement("div");
+    meta.className = "diag-finding-meta";
+    const range = Number.isFinite(f.start) && Number.isFinite(f.end) ? `${fmtTime(f.start)} to ${fmtTime(f.end)}` : "";
+    meta.textContent = [f.templateName, f.reportKey ? `report: ${f.reportKey}` : "", range].filter(Boolean).join(" | ");
+    const summary = document.createElement("div");
+    summary.className = "diag-finding-meta";
+    summary.textContent = f.summary || "";
+    const actions = document.createElement("div");
+    actions.className = "diag-finding-actions";
+    const jump = document.createElement("button");
+    jump.className = "btn ghost";
+    jump.textContent = "Open";
+    jump.addEventListener("click", () => jumpToFinding(f));
+    actions.appendChild(jump);
+    card.appendChild(title);
+    card.appendChild(meta);
+    card.appendChild(summary);
+    card.appendChild(actions);
+    frag.appendChild(card);
+  });
+  $diagFindings.appendChild(frag);
+}
+
+async function loadDiagnosticTemplates() {
+  if (!$diagTemplates) return;
+  try {
+    const res = await apiFetch("/api/diagnostics/templates");
+    const data = await res.json();
+    const list = Array.isArray(data.templates) ? data.templates : [];
+    state.diagnosticsTemplates = list;
+    state.selectedDiagnosticTemplateIds = new Set(list.filter((t) => t.enabled !== false).map((t) => t.id));
+    renderDiagnosticTemplates();
+  } catch (_err) {
+    $diagTemplates.textContent = "Failed to load templates.";
+  }
+}
+
+async function runDiagnostics() {
+  if (!$runDiagnostics) return;
+  const ids = Array.from(state.selectedDiagnosticTemplateIds.values());
+  setStatus("Running diagnostics...");
+  if ($diagRunMeta) $diagRunMeta.textContent = "";
+  try {
+    const res = await apiFetch("/api/diagnostics/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ templateIds: ids }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      setStatus(data.error || "Diagnostics failed.");
+      return;
+    }
+    state.diagnosticsFindings = Array.isArray(data.findings) ? data.findings : [];
+    renderDiagnosticFindings();
+    if ($diagRunMeta) $diagRunMeta.textContent = `Scanned ${data.rowsScanned || 0} rows in ${data.durationMs || 0}ms using ${data.templates || 0} templates`;
+    setStatus(`Diagnostics complete: ${state.diagnosticsFindings.length} finding(s).`);
+  } catch (_err) {
+    setStatus("Diagnostics request failed.");
+  }
+}
+
+async function jumpToFinding(finding) {
+  if (!finding) return;
+  if (finding.reportKey) selectReport(finding.reportKey);
+  if (finding.attributeLabel) {
+    const attr = state.attributes.find((a) => a.label === finding.attributeLabel);
+    if (attr) {
+      state.selectedAttribute = attr.key;
+      enforceSingleAttributeSelection();
+      renderAttributes();
+      renderInstances();
+    }
+  }
+  const attr = currentAttribute();
+  if (attr && Array.isArray(finding.instances) && finding.instances.length > 0) {
+    state.selected.clear();
+    const targets = finding.instances.map((x) => String(x).toLowerCase());
+    attr.items.forEach((item) => {
+      const raw = (item.instance || "").toLowerCase();
+      const compact = compactInstanceName(item).toLowerCase();
+      if (targets.some((t) => raw.includes(t) || compact.includes(t))) state.selected.add(item.idx);
+    });
+    if (state.selected.size === 0) {
+      attr.items.slice(0, 1).forEach((item) => state.selected.add(item.idx));
+    }
+    renderInstances();
+  }
+  await loadSeries();
+  if (Number.isFinite(finding.start) && Number.isFinite(finding.end) && finding.end > finding.start) {
+    zoomToRange(finding.start, finding.end);
+  }
 }
 
 function cloneSeries(series) {
@@ -1049,6 +1204,9 @@ function applyMeta(data) {
   state.hoveredMarkId = null;
   updateMarkButtons();
   hideMarkMenu();
+  state.diagnosticsFindings = [];
+  renderDiagnosticFindings();
+  if ($diagRunMeta) $diagRunMeta.textContent = "";
 
   $filePath.textContent = state.file;
 
@@ -1725,6 +1883,7 @@ if ($markMenuColor) $markMenuColor.addEventListener("input", () => {
 
 document.getElementById("loadSeries").addEventListener("click", () => loadSeries());
 document.getElementById("screenshot").addEventListener("click", () => downloadScreenshot());
+if ($runDiagnostics) $runDiagnostics.addEventListener("click", () => runDiagnostics());
 $zoomPanWindow.addEventListener("mousedown", (e) => {
   e.preventDefault();
   const span = parseInt($zoomPanTrack.dataset.span || "1", 10);
@@ -1968,4 +2127,6 @@ initTheme();
 initSidebarState();
 setDatasetMode("file");
 updateMarkButtons();
+renderDiagnosticFindings();
+loadDiagnosticTemplates();
 loadMeta().then(() => loadSeries());

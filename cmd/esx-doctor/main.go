@@ -26,7 +26,7 @@ import (
 	"time"
 )
 
-//go:embed web/*
+//go:embed web/* templates/*.json
 var webFS embed.FS
 
 type IndexEntry struct {
@@ -579,6 +579,22 @@ func main() {
 			sessions.CleanupExpired()
 		}
 	}()
+	templates, err := loadDiagnosticTemplates(webFS)
+	if err != nil {
+		log.Fatalf("failed to load diagnostic templates: %v", err)
+	}
+	templateByID := make(map[string]DiagnosticTemplate, len(templates))
+	templateMeta := make([]DiagnosticTemplateMeta, 0, len(templates))
+	for _, t := range templates {
+		templateByID[t.ID] = t
+		templateMeta = append(templateMeta, DiagnosticTemplateMeta{
+			ID:          t.ID,
+			Name:        t.Name,
+			Description: t.Description,
+			Enabled:     t.Enabled,
+			Severity:    t.Severity,
+		})
+	}
 
 	mux := http.NewServeMux()
 
@@ -604,6 +620,57 @@ func main() {
 			"loaded":  true,
 		}
 		writeJSON(w, http.StatusOK, payload)
+	})
+
+	mux.HandleFunc("/api/diagnostics/templates", func(w http.ResponseWriter, r *http.Request) {
+		_ = sessions.SessionForRequest(w, r)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"templates": templateMeta,
+		})
+	})
+
+	mux.HandleFunc("/api/diagnostics/run", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "use POST"})
+			return
+		}
+		current := sessions.SessionForRequest(w, r).Get()
+		if current == nil {
+			writeJSON(w, http.StatusBadRequest, DiagnosticRunResponse{Error: "no file loaded"})
+			return
+		}
+		var req struct {
+			TemplateIDs []string `json:"templateIds"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, DiagnosticRunResponse{Error: "invalid JSON body"})
+			return
+		}
+		selected := make([]DiagnosticTemplate, 0)
+		if len(req.TemplateIDs) == 0 {
+			for _, t := range templates {
+				if t.Enabled {
+					selected = append(selected, t)
+				}
+			}
+		} else {
+			for _, id := range req.TemplateIDs {
+				id = strings.TrimSpace(id)
+				if id == "" {
+					continue
+				}
+				if t, ok := templateByID[id]; ok {
+					selected = append(selected, t)
+				}
+			}
+		}
+		resp, err := runDiagnostics(current, selected)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, DiagnosticRunResponse{Error: err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, resp)
 	})
 
 	mux.HandleFunc("/api/open", func(w http.ResponseWriter, r *http.Request) {

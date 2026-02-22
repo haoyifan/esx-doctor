@@ -305,6 +305,58 @@ body.sidebar-collapsed .sidebar {
 .dataset-pane {
   margin-top: 10px;
 }
+.diag-templates {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  max-height: 170px;
+  overflow: auto;
+  background: var(--list-bg);
+}
+.diag-templates label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  color: var(--text);
+  padding: 5px 2px;
+}
+.diag-templates label span {
+  color: var(--muted);
+  font-size: 11px;
+}
+.diag-findings {
+  margin-top: 10px;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--list-bg);
+  padding: 6px;
+}
+.diag-finding {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 6px;
+  background: var(--panel);
+}
+.diag-finding:last-child {
+  margin-bottom: 0;
+}
+.diag-finding-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+.diag-finding-meta {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 4px;
+}
+.diag-finding-actions {
+  margin-top: 6px;
+}
 
 .controls { display: flex; gap: 8px; margin-top: 10px; }
 .controls.tight { margin-top: 8px; }

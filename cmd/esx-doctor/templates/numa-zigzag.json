@@ -1,0 +1,12 @@
+{
+  "id": "numa.aggressive_migration.v1",
+  "name": "Aggressive NUMA Migration Pattern",
+  "description": "Detect zig-zag dominance between NUMA node load signals.",
+  "enabled": true,
+  "severity": "medium",
+  "detector": {
+    "type": "numa_zigzag",
+    "min_switches": 6,
+    "min_gap": 3.0
+  }
+}

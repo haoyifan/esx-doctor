@@ -1,0 +1,10 @@
+{
+  "id": "config.exclusive_affinity.v1",
+  "name": "Exclusive Affinity Enabled",
+  "description": "Detect entities with exclusive affinity enabled, which may influence scheduling behavior.",
+  "enabled": true,
+  "severity": "medium",
+  "detector": {
+    "type": "exclusive_affinity"
+  }
+}

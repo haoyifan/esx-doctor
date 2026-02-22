@@ -1,0 +1,12 @@
+{
+  "id": "cpu.high_costop.v1",
+  "name": "High Co-Stop Time",
+  "description": "Detect sustained vCPU co-stop time over threshold.",
+  "enabled": true,
+  "severity": "high",
+  "detector": {
+    "type": "high_costop",
+    "threshold": 3.0,
+    "min_consecutive": 6
+  }
+}

@@ -77,6 +77,20 @@
       </div>
 
       <details class="section optional-panel">
+        <summary class="optional-toggle">Diagnostics</summary>
+        <div class="label-row">
+          <div class="sub-label">Templates</div>
+          <span class="help-tip" data-help="Run selected templates to surface likely problems and jump directly to related reports.">?</span>
+        </div>
+        <div id="diagTemplates" class="diag-templates"></div>
+        <div class="controls">
+          <button id="runDiagnostics" class="btn primary">Run Diagnostics</button>
+        </div>
+        <div id="diagRunMeta" class="muted"></div>
+        <div id="diagFindings" class="diag-findings"></div>
+      </details>
+
+      <details class="section optional-panel">
         <summary class="optional-toggle">Appearance</summary>
         <div class="label-row">
           <div class="sub-label">Theme</div>

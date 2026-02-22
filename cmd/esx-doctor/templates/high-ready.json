@@ -1,0 +1,12 @@
+{
+  "id": "cpu.high_ready.v1",
+  "name": "High Ready Time",
+  "description": "Detect sustained vCPU/group ready time above threshold, indicating CPU contention.",
+  "enabled": true,
+  "severity": "high",
+  "detector": {
+    "type": "high_ready",
+    "threshold": 5.0,
+    "min_consecutive": 6
+  }
+}

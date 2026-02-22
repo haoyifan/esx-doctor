@@ -131,12 +131,25 @@ Direct URL:
 
 - Dynamic report groups (CPU, Memory, NUMA, Power, vSAN, Storage, Network, etc.)
 - Single-attribute, multi-instance overlays for clear comparison
+- Template-based diagnostics (`Run Diagnostics`) to surface potential issues quickly
 - Tooltip values sorted descending
 - Compact tooltip labels (instance-focused names)
 - Zoom + pan slider navigation
 - Screenshot export with graph title and visible time window
 - Runtime CSV switching without restart
 - Multi-window workspace with independent selections and zoom states
+- Per-session CSV isolation for concurrent users/tabs
+
+## Diagnostics Templates
+
+- Built-in templates live in `cmd/esx-doctor/templates`.
+- You can select templates in the UI diagnostics panel and run them on demand.
+- Current starter templates include:
+  - Aggressive NUMA migration pattern
+  - High ready time
+  - High co-stop time
+  - Sustained storage latency
+  - Exclusive affinity enabled
 
 ## Troubleshooting
 
