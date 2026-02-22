@@ -1778,14 +1778,19 @@ async function loadSeries() {
   }
 
   const nextTimes = data.times || [];
-  const nextSeries = (data.series || []).map((s, i) => {
+  let nextSeries = (data.series || []).map((s, i) => {
     const idx = requestedCols[i];
     const item = state.indexMap.get(idx);
     return {
       ...s,
-      name: compactInstanceName(item) || s.name,
+      name: item ? (compactInstanceName(item) || s.name) : s.name,
     };
   });
+  const totalSeries = nextSeries.length;
+  nextSeries = nextSeries.filter((s) => Array.isArray(s.values) && s.values.some((v) => Number.isFinite(v)));
+  if (nextSeries.length < totalSeries) {
+    setStatus(`Loaded ${nextSeries.length}/${totalSeries} plottable series (non-numeric/empty series skipped).`);
+  }
   const target = state.windows.find((w) => w.id === targetWindowId);
   if (target) {
     target.times = [...nextTimes];

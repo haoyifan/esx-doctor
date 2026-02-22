@@ -352,6 +352,30 @@ func parseFloatValue(s string) (float64, bool) {
 	return v, true
 }
 
+func parseDelimitedFloatValues(s string, delim string) ([]float64, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, false
+	}
+	parts := strings.Split(s, delim)
+	if len(parts) < 2 {
+		return nil, false
+	}
+	out := make([]float64, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return nil, false
+		}
+		v, err := strconv.ParseFloat(p, 64)
+		if err != nil {
+			return nil, false
+		}
+		out = append(out, v)
+	}
+	return out, true
+}
+
 type SeriesResponse struct {
 	Times  []int64         `json:"times"`
 	Series []SeriesPayload `json:"series"`
@@ -368,14 +392,16 @@ type SeriesPayload struct {
 
 func (df *DataFile) extractSeries(cols []int, start, end time.Time, maxPoints int) (SeriesResponse, error) {
 	resp := SeriesResponse{
-		Series: make([]SeriesPayload, len(cols)),
+		Series: make([]SeriesPayload, 0, len(cols)),
 	}
+	seriesMap := make([][]int, len(cols))
 	for i, idx := range cols {
 		name := ""
 		if idx >= 0 && idx < len(df.Columns) {
 			name = df.Columns[idx]
 		}
-		resp.Series[i] = SeriesPayload{Name: name}
+		resp.Series = append(resp.Series, SeriesPayload{Name: name})
+		seriesMap[i] = []int{len(resp.Series) - 1}
 	}
 
 	estimated := df.estimateRows(start, end)
@@ -440,14 +466,49 @@ func (df *DataFile) extractSeries(cols []int, start, end time.Time, maxPoints in
 
 		if (row-startRow)%step == 0 {
 			resp.Times = append(resp.Times, timestamp.UnixMilli())
+			currentPos := len(resp.Times) - 1
+			for si := range resp.Series {
+				resp.Series[si].Values = append(resp.Series[si].Values, math.NaN())
+			}
+
 			for i, idx := range cols {
-				val := math.NaN()
+				targets := seriesMap[i]
 				if idx >= 0 && idx < len(record) {
-					if v, ok := parseFloatValue(record[idx]); ok {
-						val = v
+					raw := record[idx]
+					if values, ok := parseDelimitedFloatValues(raw, "/"); ok {
+						if len(targets) == 1 && len(values) > 1 {
+							resp.Series[targets[0]].Name = fmt.Sprintf("%s [home 1]", resp.Series[targets[0]].Name)
+						}
+						for len(targets) < len(values) {
+							nextHome := len(targets) + 1
+							name := ""
+							if len(targets) > 0 {
+								base := resp.Series[targets[0]].Name
+								if p := strings.LastIndex(base, " [home "); p > 0 {
+									base = base[:p]
+								}
+								name = fmt.Sprintf("%s [home %d]", base, nextHome)
+							}
+							if name == "" {
+								name = fmt.Sprintf("col_%d [home %d]", idx, nextHome)
+							}
+							sp := SeriesPayload{Name: name, Values: make([]float64, currentPos+1)}
+							for x := 0; x <= currentPos; x++ {
+								sp.Values[x] = math.NaN()
+							}
+							resp.Series = append(resp.Series, sp)
+							targets = append(targets, len(resp.Series)-1)
+						}
+						seriesMap[i] = targets
+						for vi, val := range values {
+							resp.Series[targets[vi]].Values[currentPos] = val
+						}
+						continue
+					}
+					if v, ok := parseFloatValue(raw); ok {
+						resp.Series[targets[0]].Values[currentPos] = v
 					}
 				}
-				resp.Series[i].Values = append(resp.Series[i].Values, val)
 			}
 			kept++
 		}
