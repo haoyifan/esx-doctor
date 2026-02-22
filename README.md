@@ -4,50 +4,53 @@
 
 <h1 align="center">esx-doctor</h1>
 
-<p align="center">High-performance visualization for large esxtop CSV exports.</p>
+<p align="center">Fast, local-first troubleshooting for large esxtop CSV files.</p>
 
-`esx-doctor` is a high-performance viewer for large ESX/esxtop batch CSV exports.
-It is designed for fast startup, low memory usage, and interactive time-series troubleshooting.
+`esx-doctor` is built for one job: help you move from a huge batch CSV to a clear performance story quickly.
+You load a file, pick one metric, compare instances, zoom around the timeline, and use diagnostics templates to surface likely problems.
 
-## Why esx-doctor
+## Why this tool exists
 
-- Minimal dependency footprint: if Go is installed, it runs on Linux, macOS, and Windows with no extra runtime stack. 🧩
-- Fast and resource-efficient: Go backend is optimized for large CSV ingestion and interactive querying. ⚡
-- Easy local deployment: run directly with `go run .` or build one binary and start it anywhere. 🚀
-- Easy to use: focused workflow that does one thing well—investigate esxtop batch metrics quickly. 🎯
+When esxtop data is large, most of the time goes to searching, filtering, and correlating across metrics.
+`esx-doctor` keeps that loop tight:
 
-## Quick Start
+- Runs anywhere Go runs: Linux, macOS, Windows.
+- No heavyweight runtime stack.
+- Handles large CSVs with a Go backend optimized for streaming and low memory pressure.
+- Keeps analysis local by default (good for sensitive environments).
 
-From project root:
+## Quick start
+
+From the project root:
 
 ```bash
 go run .
 ```
 
-The app prints the URL, for example:
+The app prints a URL like:
 
 ```text
 open: http://localhost:8080
 ```
 
-Then open that URL in your browser.
+Open that URL in your browser.
 
-Startup behavior:
-- If `-file` is provided, that CSV is loaded immediately.
-- If `-file` is omitted, `esx-doctor` auto-loads the newest `*.csv` in current directory.
-- If no CSV exists in current directory, use the UI file picker (`Open Selected CSV`).
-
-## Run Options
+## Common run options
 
 ```bash
 go run . -port 8080
 ```
 
 ```bash
-go run . -file /path/to/esx.csv -port 8080
+go run . -file /path/to/esxtop.csv -port 8080
 ```
 
-## Build Binary
+Startup behavior:
+- If `-file` is provided, that CSV is loaded immediately.
+- If `-file` is omitted, esx-doctor auto-loads the newest `*.csv` in the current directory.
+- If no CSV is found, use the UI file picker or URL loader.
+
+## Build a binary
 
 ```bash
 go build -o esx-doctor ./cmd/esx-doctor
@@ -60,24 +63,20 @@ Windows:
 go build -o esx-doctor.exe ./cmd/esx-doctor
 ```
 
-## Deployment Guide
+## Deployment notes
 
-### Option A: Direct run (Linux/macOS/Windows)
+### Option A: direct run
 1. Install Go 1.22+
-2. Copy repo to host
+2. Clone/copy repo to host
 3. Run `go run . -port 8080`
 4. Open `http://<host>:8080`
 
-### Option B: Single binary deployment
-1. Build binary on target OS/arch
-2. Copy binary to target host
-3. Run with optional flags:
+### Option B: single binary
+1. Build for target OS/arch
+2. Copy binary to host
+3. Run `./esx-doctor -port 8080 -file /data/esxtop.csv`
 
-```bash
-./esx-doctor -port 8080 -file /data/host-esx.csv
-```
-
-### Option C: Linux systemd service
+### Option C: systemd (Linux)
 Create `/etc/systemd/system/esx-doctor.service`:
 
 ```ini
@@ -97,7 +96,7 @@ Group=nogroup
 WantedBy=multi-user.target
 ```
 
-Enable service:
+Enable it:
 
 ```bash
 sudo systemctl daemon-reload
@@ -105,55 +104,106 @@ sudo systemctl enable --now esx-doctor
 sudo systemctl status esx-doctor
 ```
 
-## User Manual
+## Workflow in practice
 
-In app:
-- `Dataset` -> `User Manual`
+1. Open a local CSV or URL.
+2. Pick a report family (CPU, Memory, NUMA, Network, Storage, Power, vSAN, Other).
+3. Pick one attribute (single-metric view keeps comparisons clean).
+4. Pick one or more instances.
+5. Click `Load`.
+6. Zoom, pan, hover, and mark events.
+7. Use `New Window` to compare related metrics side-by-side by tabs.
+
+## Features
+
+- Single-attribute plotting with multi-instance overlay
+- Large CSV support with responsive querying
+- Local file and URL ingestion
+- Zoom + pan timeline controls
+- Crosshair, sorted tooltip, and compact instance labels
+- Marks shared across windows for timestamp correlation
+- Screenshot export of current chart view
+- Multi-window workspace for parallel analysis
+- Session isolation so multiple users/tabs can work on different CSVs concurrently
+- On-demand diagnostics with pluggable templates
+
+## Diagnostics templates
+
+Built-in templates live in `cmd/esx-doctor/templates` and run only when you click `Run Diagnostics`.
+A template is a small JSON rule file.
+
+Example:
+
+```json
+{
+  "id": "cpu.high_ready.v1",
+  "name": "High Ready Time",
+  "description": "Detect sustained vCPU ready time above threshold.",
+  "enabled": true,
+  "severity": "high",
+  "detector": {
+    "type": "high_ready",
+    "threshold": 5.0,
+    "min_consecutive": 6,
+    "include_attribute_equals": ["Vcpu: % Ready"],
+    "exclude_instance_regex": ["\\bidle\\d+\\b"]
+  }
+}
+```
+
+Supported top-level fields:
+- `id`: unique template ID
+- `name`: display name in UI and findings
+- `description`: what the rule looks for
+- `enabled`: default selected state
+- `severity`: `critical` | `high` | `medium` | `low`
+- `detector`: detector configuration object
+
+Supported detector fields:
+- `type`
+- `threshold`
+- `comparison` (`less` for low-side checks; default is greater-than)
+- `min_consecutive`
+- `min_switches`
+- `min_gap`
+- `high_threshold`, `low_threshold`
+- `include_attribute_equals`
+- `include_object_equals`
+- `exclude_instance_contains`
+- `exclude_instance_regex`
+
+Current detector types include:
+- `high_ready`
+- `high_costop`
+- `exclusive_affinity`
+- `numa_zigzag`
+- `low_numa_local`
+- `memory_overcommit_high`
+- `numa_imbalance`
+- `network_outbound_drop_high`
+- `disk_adapter_failed_reads_high`
+- `disk_adapter_driver_latency_high`
+
+## User manual
+
+In-app button: `User Manual`
 
 Direct URL:
 - `http://localhost:8080/manual`
 
-## Typical Workflow
+## License recommendation
 
-1. Open CSV via file picker.
-   Alternatively paste an HTTP/HTTPS CSV URL and click `Open CSV from URL`.
-2. Select report category.
-3. Select one attribute.
-4. Select one or more instances.
-5. Click `Load`.
-6. Drag on chart to zoom in.
-7. Double-click chart or click `Reset Zoom` to zoom out.
-8. Use bottom slider to pan current zoom window.
-9. Click `Screenshot` to export the current view.
-10. Use `New Window` to create parallel analysis windows (for example `% Used` and `% Ready`) and switch via window tabs.
+Recommended: **Apache-2.0**.
 
-## Features
+Why this is a good fit:
+- Permissive (easy internal/company adoption)
+- Includes an explicit patent grant (important for enterprise environments)
+- Clear obligations (keep notices, include license text)
 
-- Dynamic report groups (CPU, Memory, NUMA, Power, vSAN, Storage, Network, etc.)
-- Single-attribute, multi-instance overlays for clear comparison
-- Template-based diagnostics (`Run Diagnostics`) to surface potential issues quickly
-- Tooltip values sorted descending
-- Compact tooltip labels (instance-focused names)
-- Zoom + pan slider navigation
-- Screenshot export with graph title and visible time window
-- Runtime CSV switching without restart
-- Multi-window workspace with independent selections and zoom states
-- Per-session CSV isolation for concurrent users/tabs
-
-## Diagnostics Templates
-
-- Built-in templates live in `cmd/esx-doctor/templates`.
-- You can select templates in the UI diagnostics panel and run them on demand.
-- Templates can scope to exact counters via `detector.include_attribute_equals` (for example `Vcpu: % Ready` only).
-- Templates can exclude noisy instances by name via `detector.exclude_instance_contains` and regex via `detector.exclude_instance_regex`.
-- Current starter templates include:
-  - Aggressive NUMA migration pattern
-  - High ready time
-  - High co-stop time
-  - Exclusive affinity enabled
+If you want the shortest/most permissive text with fewer explicit protections, MIT is also fine.
 
 ## Troubleshooting
 
-- No graph lines: select at least one instance and click `Load Graph`.
-- Short timeline: verify CSV itself spans wider timestamps.
-- App starts with no data: load CSV from file picker.
+- No graph lines: select at least one instance and click `Load`.
+- Timeline looks short: verify the CSV time range itself.
+- Diagnostics points to unexpected data: inspect the template's `include_*` and `exclude_*` filters.
