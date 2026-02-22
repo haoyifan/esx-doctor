@@ -1770,10 +1770,17 @@ async function loadSeries() {
     params.append("end", String(state.range.end));
   }
 
-  const res = await apiFetch(`/api/series?${params.toString()}`);
-  const data = await res.json();
-  if (data.error) {
-    setStatus(data.error);
+  let res;
+  let data;
+  try {
+    res = await apiFetch(`/api/series?${params.toString()}`);
+    data = await res.json();
+  } catch (_err) {
+    setStatus("Failed to load series data.");
+    return;
+  }
+  if (!res.ok || data.error) {
+    setStatus(data && data.error ? data.error : `Series request failed (${res.status})`);
     return;
   }
 
@@ -1790,6 +1797,9 @@ async function loadSeries() {
   nextSeries = nextSeries.filter((s) => Array.isArray(s.values) && s.values.some((v) => Number.isFinite(v)));
   if (nextSeries.length < totalSeries) {
     setStatus(`Loaded ${nextSeries.length}/${totalSeries} plottable series (non-numeric/empty series skipped).`);
+  }
+  if (nextSeries.length === 0) {
+    setStatus("No plottable numeric data in selected instances.");
   }
   const target = state.windows.find((w) => w.id === targetWindowId);
   if (target) {
@@ -1811,7 +1821,7 @@ async function loadSeries() {
   state.panSpan = null;
 
   drawChart();
-  setStatus("Ready");
+  if (nextSeries.length > 0) setStatus("Ready");
   saveCurrentWindowState();
 }
 
