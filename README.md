@@ -134,60 +134,18 @@ sudo systemctl status esx-doctor
 
 ## Diagnostics templates
 
-Built-in templates live in `cmd/esx-doctor/templates` and run only when you click `Run Diagnostics`.
-A template is a small JSON rule file.
+The core idea is simple: troubleshooting should not depend on one person knowing exactly where to look.
 
-Example:
+In real incidents, one engineer may start from storage, another from CPU, another from memory. Important signals can be missed if you only scan the area you already know well. Diagnostics templates add a layer of built-in intelligence that scans across reports and surfaces likely issues quickly.
 
-```json
-{
-  "id": "cpu.high_ready.v1",
-  "name": "High Ready Time",
-  "description": "Detect sustained vCPU ready time above threshold.",
-  "enabled": true,
-  "severity": "high",
-  "detector": {
-    "type": "high_ready",
-    "threshold": 5.0,
-    "min_consecutive": 6,
-    "include_attribute_equals": ["Vcpu: % Ready"],
-    "exclude_instance_regex": ["\\bidle\\d+\\b"]
-  }
-}
-```
+How it helps:
+- Finds suspicious patterns across multiple domains (CPU, memory, NUMA, network, storage) in one pass
+- Highlights concrete findings with timestamps and triggering instances
+- Lets you click `Open` to jump directly to the relevant chart for validation
+- Stays extensible: when your team discovers a new failure pattern, you can codify it as a new template and reuse it
 
-Supported top-level fields:
-- `id`: unique template ID
-- `name`: display name in UI and findings
-- `description`: what the rule looks for
-- `enabled`: default selected state
-- `severity`: `critical` | `high` | `medium` | `low`
-- `detector`: detector configuration object
-
-Supported detector fields:
-- `type`
-- `threshold`
-- `comparison` (`less` for low-side checks; default is greater-than)
-- `min_consecutive`
-- `min_switches`
-- `min_gap`
-- `high_threshold`, `low_threshold`
-- `include_attribute_equals`
-- `include_object_equals`
-- `exclude_instance_contains`
-- `exclude_instance_regex`
-
-Current detector types include:
-- `high_ready`
-- `high_costop`
-- `exclusive_affinity`
-- `numa_zigzag`
-- `low_numa_local`
-- `memory_overcommit_high`
-- `numa_imbalance`
-- `network_outbound_drop_high`
-- `disk_adapter_failed_reads_high`
-- `disk_adapter_driver_latency_high`
+Templates are JSON files in `cmd/esx-doctor/templates` and run on demand when you click `Run Diagnostics`.
+For full template format, field reference, and examples, see the User Manual (`/manual`).
 
 ## User manual
 
