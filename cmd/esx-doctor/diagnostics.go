@@ -32,6 +32,7 @@ type DetectorTemplate struct {
 	MinConsecutive          int      `json:"min_consecutive,omitempty"`
 	MinSwitches             int      `json:"min_switches,omitempty"`
 	MinGap                  float64  `json:"min_gap,omitempty"`
+	IncludeAttributeEquals  []string `json:"include_attribute_equals,omitempty"`
 	ExcludeInstanceContains []string `json:"exclude_instance_contains,omitempty"`
 }
 
@@ -416,6 +417,18 @@ func excludedByName(name string, excludes []string) bool {
 	return false
 }
 
+func matchesIncludedAttribute(label string, includes []string) bool {
+	if len(includes) == 0 {
+		return true
+	}
+	for _, inc := range includes {
+		if strings.EqualFold(strings.TrimSpace(inc), strings.TrimSpace(label)) {
+			return true
+		}
+	}
+	return false
+}
+
 func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowProcessor {
 	var processors []rowProcessor
 	for _, t := range templates {
@@ -456,6 +469,9 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 					reportKey = "storage"
 				}
 				if !match {
+					continue
+				}
+				if !matchesIncludedAttribute(c.AttributeLabel, t.Detector.IncludeAttributeEquals) {
 					continue
 				}
 				if excludedByName(c.Instance, t.Detector.ExcludeInstanceContains) {

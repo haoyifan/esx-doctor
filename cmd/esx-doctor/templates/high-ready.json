@@ -8,6 +8,7 @@
     "type": "high_ready",
     "threshold": 5.0,
     "min_consecutive": 6,
+    "include_attribute_equals": ["Vcpu: % Ready"],
     "exclude_instance_contains": ["idle"]
   }
 }
