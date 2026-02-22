@@ -196,17 +196,6 @@ In-app button: `User Manual`
 Direct URL:
 - `http://localhost:8080/manual`
 
-## License recommendation
-
-Recommended: **Apache-2.0**.
-
-Why this is a good fit:
-- Permissive (easy internal/company adoption)
-- Includes an explicit patent grant (important for enterprise environments)
-- Clear obligations (keep notices, include license text)
-
-If you want the shortest/most permissive text with fewer explicit protections, MIT is also fine.
-
 ## Troubleshooting
 
 - No graph lines: select at least one instance and click `Load`.
