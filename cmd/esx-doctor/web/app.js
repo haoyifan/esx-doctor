@@ -1090,6 +1090,17 @@ function compactInstanceName(item) {
   return instance;
 }
 
+function compactSeriesNameFromRaw(rawName) {
+  if (!rawName) return "";
+  const suffixMatch = rawName.match(/\s+\[home \d+\]$/i);
+  const suffix = suffixMatch ? suffixMatch[0] : "";
+  const base = suffix ? rawName.slice(0, -suffix.length) : rawName;
+  const parsed = parsePDHColumn(base, -1);
+  const compact = compactInstanceName(parsed);
+  if (!compact) return rawName;
+  return `${compact}${suffix}`;
+}
+
 function getVisibleInstances(attr) {
   if (!attr) return [];
   const filter = ($instanceSearch.value || "").trim().toLowerCase();
@@ -1790,7 +1801,7 @@ async function loadSeries() {
     const item = state.indexMap.get(idx);
     return {
       ...s,
-      name: item ? (compactInstanceName(item) || s.name) : s.name,
+      name: item ? (compactInstanceName(item) || s.name) : (compactSeriesNameFromRaw(s.name) || s.name),
     };
   });
   const totalSeries = nextSeries.length;
