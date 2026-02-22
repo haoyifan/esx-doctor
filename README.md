@@ -145,7 +145,7 @@ Direct URL:
 - Built-in templates live in `cmd/esx-doctor/templates`.
 - You can select templates in the UI diagnostics panel and run them on demand.
 - Templates can scope to exact counters via `detector.include_attribute_equals` (for example `Vcpu: % Ready` only).
-- Templates can exclude noisy instances by name using `detector.exclude_instance_contains`.
+- Templates can exclude noisy instances by name via `detector.exclude_instance_contains` and regex via `detector.exclude_instance_regex`.
 - Current starter templates include:
   - Aggressive NUMA migration pattern
   - High ready time

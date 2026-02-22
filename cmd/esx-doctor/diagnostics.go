@@ -11,6 +11,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,6 +35,7 @@ type DetectorTemplate struct {
 	MinGap                  float64  `json:"min_gap,omitempty"`
 	IncludeAttributeEquals  []string `json:"include_attribute_equals,omitempty"`
 	ExcludeInstanceContains []string `json:"exclude_instance_contains,omitempty"`
+	ExcludeInstanceRegex    []string `json:"exclude_instance_regex,omitempty"`
 }
 
 type DiagnosticTemplateMeta struct {
@@ -417,6 +419,26 @@ func excludedByName(name string, excludes []string) bool {
 	return false
 }
 
+func excludedByRegex(name string, patterns []string) bool {
+	if len(patterns) == 0 {
+		return false
+	}
+	for _, p := range patterns {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		re, err := regexp.Compile("(?i)" + p)
+		if err != nil {
+			continue
+		}
+		if re.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
 func matchesIncludedAttribute(label string, includes []string) bool {
 	if len(includes) == 0 {
 		return true
@@ -475,6 +497,9 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 					continue
 				}
 				if excludedByName(c.Instance, t.Detector.ExcludeInstanceContains) {
+					continue
+				}
+				if excludedByRegex(c.Instance, t.Detector.ExcludeInstanceRegex) {
 					continue
 				}
 				idxs = append(idxs, c.Idx)
