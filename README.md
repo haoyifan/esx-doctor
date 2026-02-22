@@ -145,6 +145,7 @@ How it helps:
 - Stays extensible: when your team discovers a new failure pattern, you can codify it as a new template and reuse it
 
 Templates are JSON files in `cmd/esx-doctor/templates` and run on demand when you click `Run Diagnostics`.
+Think of each template as a pluggable rule: it describes a problem signature in JSON, and the diagnostics engine evaluates that rule against the loaded time-series to detect matching issue patterns.
 For full template format, field reference, and examples, see the User Manual (`/manual`).
 
 ## User manual
