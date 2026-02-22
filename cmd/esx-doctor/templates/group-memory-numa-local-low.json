@@ -9,6 +9,7 @@
     "comparison": "less",
     "threshold": 85.0,
     "min_consecutive": 8,
-    "include_attribute_equals": ["Group Memory: Numa % Local"]
+    "include_attribute_equals": ["Group Memory: Numa % Local"],
+    "exclude_instance_regex": ["\\.[0-9]+$"]
   }
 }
