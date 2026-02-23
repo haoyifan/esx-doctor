@@ -28,18 +28,30 @@ type DiagnosticTemplate struct {
 }
 
 type DetectorTemplate struct {
-	Type                    string   `json:"type"`
-	Threshold               float64  `json:"threshold,omitempty"`
-	Comparison              string   `json:"comparison,omitempty"`
-	MinConsecutive          int      `json:"min_consecutive,omitempty"`
-	MinSwitches             int      `json:"min_switches,omitempty"`
-	MinGap                  float64  `json:"min_gap,omitempty"`
-	LowThreshold            float64  `json:"low_threshold,omitempty"`
-	HighThreshold           float64  `json:"high_threshold,omitempty"`
-	IncludeAttributeEquals  []string `json:"include_attribute_equals,omitempty"`
-	IncludeObjectEquals     []string `json:"include_object_equals,omitempty"`
-	ExcludeInstanceContains []string `json:"exclude_instance_contains,omitempty"`
-	ExcludeInstanceRegex    []string `json:"exclude_instance_regex,omitempty"`
+	Type                    string         `json:"type"`
+	Threshold               float64        `json:"threshold,omitempty"`
+	Comparison              string         `json:"comparison,omitempty"`
+	MinConsecutive          int            `json:"min_consecutive,omitempty"`
+	MinSwitches             int            `json:"min_switches,omitempty"`
+	MinGap                  float64        `json:"min_gap,omitempty"`
+	LowThreshold            float64        `json:"low_threshold,omitempty"`
+	HighThreshold           float64        `json:"high_threshold,omitempty"`
+	IncludeAttributeEquals  []string       `json:"include_attribute_equals,omitempty"`
+	IncludeObjectEquals     []string       `json:"include_object_equals,omitempty"`
+	ExcludeInstanceContains []string       `json:"exclude_instance_contains,omitempty"`
+	ExcludeInstanceRegex    []string       `json:"exclude_instance_regex,omitempty"`
+	Filter                  TemplateFilter `json:"filter,omitempty"`
+}
+
+type TemplateFilter struct {
+	Logic      string              `json:"logic,omitempty"`
+	Conditions []TemplateCondition `json:"conditions,omitempty"`
+}
+
+type TemplateCondition struct {
+	Field string `json:"field"`
+	Op    string `json:"op"`
+	Value string `json:"value"`
 }
 
 type DiagnosticTemplateMeta struct {
@@ -574,11 +586,100 @@ func matchesIncludedObject(object string, includes []string) bool {
 	return false
 }
 
+func evaluateTemplateCondition(c parsedColumn, cond TemplateCondition) bool {
+	field := strings.TrimSpace(strings.ToLower(cond.Field))
+	op := strings.TrimSpace(strings.ToLower(cond.Op))
+	val := cond.Value
+	var target string
+	switch field {
+	case "object":
+		target = c.Object
+	case "attribute", "attributelabel":
+		target = c.AttributeLabel
+	case "instance":
+		target = c.Instance
+	case "counter":
+		target = c.Counter
+	case "raw":
+		target = c.Raw
+	default:
+		return false
+	}
+	targetFold := strings.ToLower(strings.TrimSpace(target))
+	valueFold := strings.ToLower(strings.TrimSpace(val))
+
+	switch op {
+	case "eq", "=":
+		return targetFold == valueFold
+	case "neq", "!=":
+		return targetFold != valueFold
+	case "contains":
+		return strings.Contains(targetFold, valueFold)
+	case "not_contains":
+		return !strings.Contains(targetFold, valueFold)
+	case "regex":
+		re, err := regexp.Compile("(?i)" + strings.TrimSpace(val))
+		return err == nil && re.MatchString(target)
+	case "not_regex":
+		re, err := regexp.Compile("(?i)" + strings.TrimSpace(val))
+		return err == nil && !re.MatchString(target)
+	case "prefix", "starts_with":
+		return strings.HasPrefix(targetFold, valueFold)
+	case "suffix", "ends_with":
+		return strings.HasSuffix(targetFold, valueFold)
+	default:
+		return false
+	}
+}
+
+func matchesTemplateFilter(c parsedColumn, filter TemplateFilter) bool {
+	if len(filter.Conditions) == 0 {
+		return true
+	}
+	logic := strings.TrimSpace(strings.ToLower(filter.Logic))
+	if logic == "or" {
+		for _, cond := range filter.Conditions {
+			if evaluateTemplateCondition(c, cond) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, cond := range filter.Conditions {
+		if !evaluateTemplateCondition(c, cond) {
+			return false
+		}
+	}
+	return true
+}
+
+func inferReportKeyFromAttribute(attr string) string {
+	l := strings.ToLower(attr)
+	switch {
+	case strings.Contains(l, "cpu") || strings.Contains(l, "vcpu") || strings.Contains(l, "% ready") || strings.Contains(l, "% costop"):
+		return "cpu"
+	case strings.Contains(l, "memory") || strings.Contains(l, "swap") || strings.Contains(l, "group memory"):
+		return "memory"
+	case strings.Contains(l, "numa"):
+		return "numa"
+	case strings.Contains(l, "network") || strings.Contains(l, "net"):
+		return "network"
+	case strings.Contains(l, "disk") || strings.Contains(l, "storage") || strings.Contains(l, "latency"):
+		return "storage"
+	case strings.Contains(l, "power") || strings.Contains(l, "pstate") || strings.Contains(l, "watts"):
+		return "power"
+	case strings.Contains(l, "vsan"):
+		return "vsan"
+	default:
+		return "other"
+	}
+}
+
 func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowProcessor {
 	var processors []rowProcessor
 	for _, t := range templates {
 		switch t.Detector.Type {
-		case "high_ready", "high_costop", "storage_latency", "low_numa_local", "memory_overcommit_high", "network_outbound_drop_high", "disk_adapter_failed_reads_high", "disk_adapter_driver_latency_high":
+		case "threshold_sustained", "high_ready", "high_costop", "storage_latency", "low_numa_local", "memory_overcommit_high", "network_outbound_drop_high", "disk_adapter_failed_reads_high", "disk_adapter_driver_latency_high":
 			var idxs []int
 			var labels []string
 			attribute := ""
@@ -615,6 +716,9 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 				l := strings.ToLower(c.AttributeLabel)
 				match := false
 				switch t.Detector.Type {
+				case "threshold_sustained":
+					match = true
+					reportKey = "other"
 				case "high_ready":
 					match = strings.Contains(l, "% ready")
 					reportKey = "cpu"
@@ -643,6 +747,9 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 				if !match {
 					continue
 				}
+				if !matchesTemplateFilter(c, t.Detector.Filter) {
+					continue
+				}
 				if !matchesIncludedAttribute(c.AttributeLabel, t.Detector.IncludeAttributeEquals) {
 					continue
 				}
@@ -662,6 +769,9 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 				}
 			}
 			if len(idxs) > 0 {
+				if reportKey == "other" && attribute != "" {
+					reportKey = inferReportKeyFromAttribute(attribute)
+				}
 				processors = append(processors, &thresholdProcessor{
 					template:       t,
 					reportKey:      reportKey,
@@ -678,10 +788,15 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 			var idxs []int
 			var labels []string
 			for _, c := range cols {
-				if containsAnyFold(c.AttributeLabel, "numa") && containsAnyFold(c.AttributeLabel, "load", "% used") {
-					idxs = append(idxs, c.Idx)
-					labels = append(labels, c.AttributeLabel)
+				if len(t.Detector.Filter.Conditions) > 0 {
+					if !matchesTemplateFilter(c, t.Detector.Filter) {
+						continue
+					}
+				} else if !(containsAnyFold(c.AttributeLabel, "numa") && containsAnyFold(c.AttributeLabel, "load", "% used", "% processor time")) {
+					continue
 				}
+				idxs = append(idxs, c.Idx)
+				labels = append(labels, c.AttributeLabel)
 			}
 			if len(idxs) >= 2 {
 				minSwitches := t.Detector.MinSwitches
@@ -724,10 +839,15 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 			var idxs []int
 			var labels []string
 			for _, c := range cols {
-				if strings.EqualFold(c.Object, "Numa Node") && strings.EqualFold(c.Counter, "% Processor Time") {
-					idxs = append(idxs, c.Idx)
-					labels = append(labels, "Numa Node "+c.Instance)
+				if len(t.Detector.Filter.Conditions) > 0 {
+					if !matchesTemplateFilter(c, t.Detector.Filter) {
+						continue
+					}
+				} else if !(strings.EqualFold(c.Object, "Numa Node") && strings.EqualFold(c.Counter, "% Processor Time")) {
+					continue
 				}
+				idxs = append(idxs, c.Idx)
+				labels = append(labels, "Numa Node "+c.Instance)
 			}
 			if len(idxs) >= 2 {
 				high := t.Detector.HighThreshold

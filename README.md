@@ -146,6 +146,7 @@ How it helps:
 
 Templates are JSON files in `cmd/esx-doctor/templates` and run on demand when you click `Run Diagnostics`.
 Think of each template as a pluggable rule: it describes a problem signature in JSON, and the diagnostics engine evaluates that rule against the loaded time-series to detect matching issue patterns.
+You can manage templates directly in the app via `Manage Templates` (create, edit, delete custom templates, import JSON, export JSON).
 For full template format, field reference, and examples, see the User Manual (`/manual`).
 
 ## User manual

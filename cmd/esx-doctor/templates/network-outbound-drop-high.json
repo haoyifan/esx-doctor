@@ -5,9 +5,15 @@
   "enabled": true,
   "severity": "high",
   "detector": {
-    "type": "network_outbound_drop_high",
+    "type": "threshold_sustained",
+    "comparison": "greater",
     "threshold": 1.0,
     "min_consecutive": 6,
-    "include_attribute_equals": ["Network Port: % Outbound Packets Dropped"]
+    "filter": {
+      "logic": "and",
+      "conditions": [
+        {"field": "attribute", "op": "eq", "value": "Network Port: % Outbound Packets Dropped"}
+      ]
+    }
   }
 }

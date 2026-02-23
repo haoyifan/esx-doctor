@@ -96,6 +96,7 @@ const $filterMin = document.getElementById("filterMin");
 const $filterMax = document.getElementById("filterMax");
 const $diagTemplates = document.getElementById("diagTemplates");
 const $runDiagnostics = document.getElementById("runDiagnostics");
+const $openTemplateManager = document.getElementById("openTemplateManager");
 const $diagFindings = document.getElementById("diagFindings");
 const $diagRunMeta = document.getElementById("diagRunMeta");
 const $sidebarToggleHandle = document.getElementById("sidebarToggleHandle");
@@ -1915,6 +1916,11 @@ if ($markMenuColor) $markMenuColor.addEventListener("input", () => {
 document.getElementById("loadSeries").addEventListener("click", () => loadSeries());
 document.getElementById("screenshot").addEventListener("click", () => downloadScreenshot());
 if ($runDiagnostics) $runDiagnostics.addEventListener("click", () => runDiagnostics());
+if ($openTemplateManager) {
+  $openTemplateManager.addEventListener("click", () => {
+    window.open("/templates", "_blank", "noopener,noreferrer");
+  });
+}
 $zoomPanWindow.addEventListener("mousedown", (e) => {
   e.preventDefault();
   const span = parseInt($zoomPanTrack.dataset.span || "1", 10);

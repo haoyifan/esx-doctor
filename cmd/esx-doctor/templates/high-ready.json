@@ -1,14 +1,20 @@
 {
   "id": "cpu.high_ready.v1",
   "name": "High Ready Time",
-  "description": "Detect sustained vCPU/group ready time above threshold, indicating CPU contention.",
+  "description": "Detect sustained high vCPU ready time indicating CPU contention.",
   "enabled": true,
   "severity": "high",
   "detector": {
-    "type": "high_ready",
+    "type": "threshold_sustained",
     "threshold": 5.0,
+    "comparison": "greater",
     "min_consecutive": 6,
-    "include_attribute_equals": ["Vcpu: % Ready"],
-    "exclude_instance_regex": ["\\bidle\\d+\\b"]
+    "filter": {
+      "logic": "and",
+      "conditions": [
+        {"field": "attribute", "op": "eq", "value": "Vcpu: % Ready"},
+        {"field": "instance", "op": "not_regex", "value": "\\bidle\\d+\\b"}
+      ]
+    }
   }
 }

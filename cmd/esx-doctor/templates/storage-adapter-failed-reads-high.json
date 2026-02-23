@@ -5,10 +5,16 @@
   "enabled": true,
   "severity": "critical",
   "detector": {
-    "type": "disk_adapter_failed_reads_high",
+    "type": "threshold_sustained",
+    "comparison": "greater",
     "threshold": 2.0,
     "min_consecutive": 4,
-    "include_object_equals": ["Physical Disk Adapter"],
-    "include_attribute_equals": ["Physical Disk Adapter: Failed Reads/sec"]
+    "filter": {
+      "logic": "and",
+      "conditions": [
+        {"field": "object", "op": "eq", "value": "Physical Disk Adapter"},
+        {"field": "attribute", "op": "eq", "value": "Physical Disk Adapter: Failed Reads/sec"}
+      ]
+    }
   }
 }

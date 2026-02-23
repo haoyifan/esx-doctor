@@ -9,6 +9,13 @@
     "high_threshold": 80.0,
     "low_threshold": 20.0,
     "min_gap": 45.0,
-    "min_consecutive": 6
+    "min_consecutive": 6,
+    "filter": {
+      "logic": "and",
+      "conditions": [
+        {"field": "object", "op": "eq", "value": "Numa Node"},
+        {"field": "counter", "op": "eq", "value": "% Processor Time"}
+      ]
+    }
   }
 }

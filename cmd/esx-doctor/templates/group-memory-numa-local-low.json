@@ -5,11 +5,16 @@
   "enabled": true,
   "severity": "high",
   "detector": {
-    "type": "low_numa_local",
+    "type": "threshold_sustained",
     "comparison": "less",
     "threshold": 85.0,
     "min_consecutive": 8,
-    "include_attribute_equals": ["Group Memory: Numa % Local"],
-    "exclude_instance_regex": ["\\.[0-9]+$"]
+    "filter": {
+      "logic": "and",
+      "conditions": [
+        {"field": "attribute", "op": "eq", "value": "Group Memory: Numa % Local"},
+        {"field": "instance", "op": "not_regex", "value": "\\.[0-9]+$"}
+      ]
+    }
   }
 }

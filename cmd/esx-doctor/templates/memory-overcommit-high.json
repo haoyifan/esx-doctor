@@ -5,9 +5,15 @@
   "enabled": true,
   "severity": "high",
   "detector": {
-    "type": "memory_overcommit_high",
+    "type": "threshold_sustained",
+    "comparison": "greater",
     "threshold": 100.0,
     "min_consecutive": 6,
-    "include_attribute_equals": ["Memory: Memory Overcommit (1 Minute Avg)"]
+    "filter": {
+      "logic": "and",
+      "conditions": [
+        {"field": "attribute", "op": "eq", "value": "Memory: Memory Overcommit (1 Minute Avg)"}
+      ]
+    }
   }
 }

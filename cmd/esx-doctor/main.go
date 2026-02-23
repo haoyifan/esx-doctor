@@ -656,17 +656,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to load diagnostic templates: %v", err)
 	}
-	templateByID := make(map[string]DiagnosticTemplate, len(templates))
-	templateMeta := make([]DiagnosticTemplateMeta, 0, len(templates))
-	for _, t := range templates {
-		templateByID[t.ID] = t
-		templateMeta = append(templateMeta, DiagnosticTemplateMeta{
-			ID:          t.ID,
-			Name:        t.Name,
-			Description: t.Description,
-			Enabled:     t.Enabled,
-			Severity:    t.Severity,
-		})
+	templateStore, err := newDiagnosticTemplateStore("", templates)
+	if err != nil {
+		log.Fatalf("failed to initialize diagnostics template store: %v", err)
 	}
 
 	mux := http.NewServeMux()
@@ -698,8 +690,78 @@ func main() {
 	mux.HandleFunc("/api/diagnostics/templates", func(w http.ResponseWriter, r *http.Request) {
 		_ = sessions.SessionForRequest(w, r)
 		writeJSON(w, http.StatusOK, map[string]any{
-			"templates": templateMeta,
+			"templates": templateStore.list(),
 		})
+	})
+
+	mux.HandleFunc("/api/diagnostics/templates/save", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "use POST"})
+			return
+		}
+		_ = sessions.SessionForRequest(w, r)
+		var req struct {
+			Template DiagnosticTemplate `json:"template"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
+			return
+		}
+		t, err := templateStore.upsert(req.Template)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"template": t, "templates": templateStore.list()})
+	})
+
+	mux.HandleFunc("/api/diagnostics/templates/delete", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "use POST"})
+			return
+		}
+		_ = sessions.SessionForRequest(w, r)
+		var req struct {
+			ID string `json:"id"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
+			return
+		}
+		if err := templateStore.delete(req.ID); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"templates": templateStore.list()})
+	})
+
+	mux.HandleFunc("/api/diagnostics/templates/import", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", http.MethodPost)
+			writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "use POST"})
+			return
+		}
+		_ = sessions.SessionForRequest(w, r)
+		var req struct {
+			Templates []DiagnosticTemplate `json:"templates"`
+			Replace   bool                 `json:"replace"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
+			return
+		}
+		if err := templateStore.importTemplates(req.Templates, req.Replace); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"templates": templateStore.list()})
+	})
+
+	mux.HandleFunc("/api/diagnostics/templates/export", func(w http.ResponseWriter, r *http.Request) {
+		_ = sessions.SessionForRequest(w, r)
+		writeJSON(w, http.StatusOK, map[string]any{"templates": templateStore.exportTemplates()})
 	})
 
 	mux.HandleFunc("/api/diagnostics/run", func(w http.ResponseWriter, r *http.Request) {
@@ -720,24 +782,7 @@ func main() {
 			writeJSON(w, http.StatusBadRequest, DiagnosticRunResponse{Error: "invalid JSON body"})
 			return
 		}
-		selected := make([]DiagnosticTemplate, 0)
-		if len(req.TemplateIDs) == 0 {
-			for _, t := range templates {
-				if t.Enabled {
-					selected = append(selected, t)
-				}
-			}
-		} else {
-			for _, id := range req.TemplateIDs {
-				id = strings.TrimSpace(id)
-				if id == "" {
-					continue
-				}
-				if t, ok := templateByID[id]; ok {
-					selected = append(selected, t)
-				}
-			}
-		}
+		selected := templateStore.byID(req.TemplateIDs)
 		resp, err := runDiagnostics(current, selected)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, DiagnosticRunResponse{Error: err.Error()})
@@ -973,6 +1018,26 @@ func main() {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(data)
+	})
+
+	mux.HandleFunc("/templates", func(w http.ResponseWriter, r *http.Request) {
+		data, err := webFS.ReadFile("web/templates.html")
+		if err != nil {
+			http.Error(w, "templates page not found", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(data)
+	})
+
+	mux.HandleFunc("/templates.js", func(w http.ResponseWriter, r *http.Request) {
+		data, err := webFS.ReadFile("web/templates.js")
+		if err != nil {
+			http.Error(w, "templates.js not found", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 		_, _ = w.Write(data)
 	})
 
