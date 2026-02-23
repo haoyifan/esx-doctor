@@ -55,6 +55,8 @@ const tooltipIdleDelayMs = 250;
 const themeStorageKey = "esxDoctorTheme";
 const sidebarStorageKey = "esxDoctorSidebarCollapsed";
 const clientSessionStorageKey = "esxDoctorClientSession";
+const templateSyncChannelName = "esxDoctorTemplatesSync";
+const templateSyncStorageKey = "esxDoctorTemplatesSyncAt";
 const defaultTheme = "midnight";
 
 function getOrCreateClientSessionID() {
@@ -138,6 +140,7 @@ let pointerMoveRAF = 0;
 let tooltipSeriesIndex = -1;
 let tooltipIdleTimer = 0;
 let tooltipIdlePoint = null;
+let templateSyncChannel = null;
 const panDrag = {
   active: false,
   startX: 0,
@@ -622,6 +625,28 @@ async function loadDiagnosticTemplates() {
     renderDiagnosticTemplates();
   } catch (_err) {
     $diagTemplates.textContent = "Failed to load templates.";
+  }
+}
+
+function setupTemplateSync() {
+  window.addEventListener("storage", (e) => {
+    if (e.key === templateSyncStorageKey) loadDiagnosticTemplates();
+  });
+
+  window.addEventListener("focus", () => loadDiagnosticTemplates());
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) loadDiagnosticTemplates();
+  });
+
+  try {
+    templateSyncChannel = new BroadcastChannel(templateSyncChannelName);
+    templateSyncChannel.onmessage = (e) => {
+      if (e && e.data && e.data.type === "templates-updated") {
+        loadDiagnosticTemplates();
+      }
+    };
+  } catch (_err) {
+    templateSyncChannel = null;
   }
 }
 
@@ -2165,5 +2190,6 @@ initSidebarState();
 setDatasetMode("file");
 updateMarkButtons();
 renderDiagnosticFindings();
+setupTemplateSync();
 loadDiagnosticTemplates();
 loadMeta().then(() => loadSeries());

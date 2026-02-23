@@ -4,6 +4,8 @@ const state = {
   attributeOptions: [],
   objectOptions: [],
 };
+const templateSyncChannelName = "esxDoctorTemplatesSync";
+const templateSyncStorageKey = "esxDoctorTemplatesSyncAt";
 
 const sessionKey = "esxDoctorClientSession";
 function getOrCreateSessionID() {
@@ -20,11 +22,33 @@ function getOrCreateSessionID() {
   }
 }
 const clientSessionID = getOrCreateSessionID();
+let templateSyncChannel = null;
+
+try {
+  templateSyncChannel = new BroadcastChannel(templateSyncChannelName);
+} catch (_err) {
+  templateSyncChannel = null;
+}
 
 async function apiFetch(url, init = {}) {
   const headers = new Headers(init.headers || {});
   headers.set("X-ESX-Session-ID", clientSessionID);
   return fetch(url, { ...init, headers });
+}
+
+function notifyTemplatesUpdated() {
+  try {
+    localStorage.setItem(templateSyncStorageKey, String(Date.now()));
+  } catch (_err) {
+    // ignore
+  }
+  try {
+    if (templateSyncChannel) {
+      templateSyncChannel.postMessage({ type: "templates-updated", ts: Date.now() });
+    }
+  } catch (_err) {
+    // ignore
+  }
 }
 
 const $ = (id) => document.getElementById(id);
@@ -308,6 +332,7 @@ async function saveTemplate() {
     renderTemplateList();
     const selected = state.templates.find((t) => t.id === state.selectedId);
     if (selected) fillForm(selected);
+    notifyTemplatesUpdated();
     setStatus("Template saved.");
   } catch (_err) {
     setStatus("Save request failed.");
@@ -334,6 +359,7 @@ async function deleteTemplate() {
     }
     state.templates = Array.isArray(data.templates) ? data.templates : [];
     clearForm();
+    notifyTemplatesUpdated();
     setStatus("Template deleted.");
   } catch (_err) {
     setStatus("Delete request failed.");
@@ -381,6 +407,7 @@ async function importTemplates(file) {
     }
     state.templates = Array.isArray(data.templates) ? data.templates : [];
     clearForm();
+    notifyTemplatesUpdated();
     setStatus(`Imported ${templates.length} template(s).`);
   } catch (_err) {
     setStatus("Import failed: invalid JSON.");
