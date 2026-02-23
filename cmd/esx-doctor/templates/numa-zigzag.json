@@ -1,14 +1,13 @@
 {
   "id": "numa.aggressive_migration.v1",
   "name": "Aggressive NUMA Migration Pattern",
-  "description": "Detect zig-zag dominance switching across matched instances.",
+  "description": "Detect frequent per-instance switches of NUMA home node assignment.",
   "enabled": true,
   "severity": "medium",
   "detector": {
-    "type": "zigzag_switch",
-    "target_attribute": "Numa Node: % Processor Time",
+    "type": "value_switch",
+    "target_attribute": "Group Memory: Numa Home Nodes",
     "min_switches": 6,
-    "min_gap": 3.0,
     "filter": {"logic": "and", "conditions": []}
   }
 }

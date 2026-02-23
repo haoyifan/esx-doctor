@@ -144,6 +144,7 @@ function renderTemplateList() {
     const rawKind = t.detector?.type || "unknown";
     const kindMap = {
       threshold_sustained: "sustained-threshold",
+      value_switch: "value-switch",
       zigzag_switch: "zigzag-switch",
       numa_zigzag: "zigzag-switch",
       dominance_imbalance: "dominance-imbalance",
@@ -207,7 +208,8 @@ function getDetectorType() {
 function refreshTypeParams() {
   const kind = getDetectorType();
   $("tmThresholdParams").style.display = kind === "threshold_sustained" ? "block" : "none";
-  $("tmZigzagParams").style.display = (kind === "zigzag_switch" || kind === "numa_zigzag") ? "block" : "none";
+  $("tmZigzagParams").style.display = (kind === "value_switch" || kind === "zigzag_switch" || kind === "numa_zigzag") ? "block" : "none";
+  $("tmMinGapWrap").style.display = (kind === "zigzag_switch" || kind === "numa_zigzag") ? "block" : "none";
   $("tmImbalanceParams").style.display = (kind === "dominance_imbalance" || kind === "numa_imbalance") ? "block" : "none";
 }
 
@@ -302,6 +304,8 @@ function toTemplatePayload() {
     if (Number.isFinite(upper) && upper > 0) detector.upper_threshold = upper;
     detector.comparison = "greater";
     detector.min_consecutive = Math.max(1, parseInt($("tmMinConsecutive").value || "6", 10));
+  } else if (type === "value_switch") {
+    detector.min_switches = Math.max(1, parseInt($("tmMinSwitches").value || "6", 10));
   } else if (type === "zigzag_switch" || type === "numa_zigzag") {
     detector.min_switches = Math.max(1, parseInt($("tmMinSwitches").value || "6", 10));
     detector.min_gap = parseNum("tmMinGap");

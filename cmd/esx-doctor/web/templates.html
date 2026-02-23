@@ -72,6 +72,7 @@
             <label class="sub-label" for="tmType">Pattern Type</label>
             <select id="tmType">
               <option value="threshold_sustained">Sustained Threshold</option>
+              <option value="value_switch">Value Switch Pattern</option>
               <option value="zigzag_switch">Zig-Zag / Dominance Switch</option>
               <option value="dominance_imbalance">Dominance Imbalance</option>
               <option value="exclusive_affinity">Boolean Active Flag</option>
@@ -127,7 +128,7 @@
                 <label class="sub-label" for="tmMinSwitches">Min Switches</label>
                 <input id="tmMinSwitches" type="number" min="1" step="1" value="6" />
               </div>
-              <div>
+              <div id="tmMinGapWrap">
                 <label class="sub-label" for="tmMinGap">Min Gap</label>
                 <input id="tmMinGap" type="number" step="0.01" value="3" />
               </div>

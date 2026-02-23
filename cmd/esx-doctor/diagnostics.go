@@ -529,6 +529,84 @@ func (p *affinityProcessor) finalize() []DiagnosticFinding {
 	}}
 }
 
+type valueSwitchEntityState struct {
+	prevSet     bool
+	prevVal     float64
+	switches    int
+	firstSwitch time.Time
+	lastSwitch  time.Time
+}
+
+type valueSwitchProcessor struct {
+	template       DiagnosticTemplate
+	reportKey      string
+	attributeLabel string
+	indexes        []int
+	labels         []string
+	minSwitches    int
+	states         []valueSwitchEntityState
+}
+
+func (p *valueSwitchProcessor) onRow(ts time.Time, record []string) {
+	for i, idx := range p.indexes {
+		if idx < 0 || idx >= len(record) {
+			continue
+		}
+		v, ok := parseFloatValue(record[idx])
+		if !ok || !NumberFinite(v) {
+			// Skip non-numeric entries (e.g. "0/1", "n/a") for this sample.
+			continue
+		}
+		s := &p.states[i]
+		if !s.prevSet {
+			s.prevSet = true
+			s.prevVal = v
+			continue
+		}
+		if math.Abs(v-s.prevVal) > 1e-9 {
+			s.switches++
+			if s.firstSwitch.IsZero() {
+				s.firstSwitch = ts
+			}
+			s.lastSwitch = ts
+			s.prevVal = v
+		}
+	}
+}
+
+func (p *valueSwitchProcessor) finalize() []DiagnosticFinding {
+	findings := make([]DiagnosticFinding, 0, len(p.states))
+	for i, s := range p.states {
+		if s.switches < p.minSwitches {
+			continue
+		}
+		f := DiagnosticFinding{
+			TemplateID:     p.template.ID,
+			TemplateName:   p.template.Name,
+			Title:          p.template.Name,
+			Severity:       p.template.Severity,
+			ReportKey:      p.reportKey,
+			AttributeLabel: p.attributeLabel,
+			Instances:      []string{p.labels[i]},
+			Summary:        fmt.Sprintf("Detected %d home-node switches for this instance.", s.switches),
+		}
+		if !s.firstSwitch.IsZero() {
+			f.Start = s.firstSwitch.UnixMilli()
+		}
+		if !s.lastSwitch.IsZero() {
+			f.End = s.lastSwitch.UnixMilli()
+		}
+		findings = append(findings, f)
+	}
+	sort.Slice(findings, func(i, j int) bool {
+		return findings[i].Instances[0] < findings[j].Instances[0]
+	})
+	if len(findings) > 30 {
+		findings = findings[:30]
+	}
+	return findings
+}
+
 func NumberFinite(v float64) bool {
 	return !math.IsNaN(v) && !math.IsInf(v, 0)
 }
@@ -881,6 +959,38 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 					minSwitches:  minSwitches,
 					minGap:       minGap,
 					prevDominant: -1,
+				})
+			}
+		case "value_switch":
+			var idxs []int
+			var labels []string
+			attrLabel := strings.TrimSpace(t.Detector.TargetAttribute)
+			if attrLabel == "" {
+				break
+			}
+			for _, c := range cols {
+				if !matchesTargetAttribute(c.AttributeLabel, attrLabel) {
+					continue
+				}
+				if len(t.Detector.Filter.Conditions) > 0 && !matchesTemplateFilter(c, t.Detector.Filter) {
+					continue
+				}
+				idxs = append(idxs, c.Idx)
+				labels = append(labels, c.Instance)
+			}
+			if len(idxs) > 0 {
+				minSwitches := t.Detector.MinSwitches
+				if minSwitches <= 0 {
+					minSwitches = 6
+				}
+				processors = append(processors, &valueSwitchProcessor{
+					template:       t,
+					reportKey:      inferReportKeyFromAttribute(attrLabel),
+					attributeLabel: attrLabel,
+					indexes:        idxs,
+					labels:         labels,
+					minSwitches:    minSwitches,
+					states:         make([]valueSwitchEntityState, len(idxs)),
 				})
 			}
 		case "exclusive_affinity":
