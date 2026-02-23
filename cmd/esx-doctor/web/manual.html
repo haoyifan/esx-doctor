@@ -144,60 +144,30 @@
       <li>Use <code>Import JSON</code> / <code>Export JSON</code> to share templates.</li>
     </ol>
 
-    <h2>8.1 Template format</h2>
-    <p>Templates are JSON files in <code>cmd/esx-doctor/templates</code>. Each file defines one detector rule.</p>
-    <pre><code>{
-  "id": "cpu.high_ready.v1",
-  "name": "High Ready Time",
-  "description": "Detect sustained vCPU ready time above threshold.",
-  "enabled": true,
-  "severity": "high",
-  "detector": {
-    "type": "high_ready",
-    "threshold": 5.0,
-    "min_consecutive": 6,
-    "include_attribute_equals": ["Vcpu: % Ready"],
-    "exclude_instance_regex": ["\\bidle\\d+\\b"]
-  }
-}</code></pre>
+    <h2>8.1 Template Builder (UI)</h2>
+    <ol>
+      <li>Click <code>Manage Templates</code>.</li>
+      <li>Select an existing template to edit, or click <code>New</code>.</li>
+      <li>Set <code>Name</code>, <code>Description</code>, and <code>Severity</code>.</li>
+      <li>Select one <code>Attribute</code> (each template runs on a single attribute).</li>
+      <li>Choose a <code>Pattern Type</code>:
+        <code>Sustained Threshold</code>,
+        <code>Value Switch Pattern</code>,
+        <code>Zig-Zag / Dominance Switch</code>,
+        <code>Dominance Imbalance</code>,
+        or <code>Boolean Active Flag</code>.</li>
+      <li>For threshold templates, set lower bound and optional upper bound, plus minimum consecutive samples.</li>
+      <li>For switch/imbalance templates, set minimum switches and/or thresholds depending on the selected pattern.</li>
+      <li>Use instance filter conditions with <code>AND</code>/<code>OR</code> if you want to scope to specific instance names or regex patterns.</li>
+      <li>Click <code>Save Template</code>.</li>
+    </ol>
 
-    <h2>8.2 Template fields</h2>
-    <ul>
-      <li><code>id</code>: Unique template ID used by API/UI.</li>
-      <li><code>name</code>: Display name shown in template list and findings.</li>
-      <li><code>description</code>: Short explanation of what the detector looks for.</li>
-      <li><code>enabled</code>: Whether it is enabled by default in the UI.</li>
-      <li><code>severity</code>: Finding priority label (for example <code>critical</code>, <code>high</code>, <code>medium</code>, <code>low</code>).</li>
-      <li><code>detector.type</code>: Detector engine type (examples below).</li>
-    </ul>
-
-    <h2>8.3 Detector fields</h2>
-    <ul>
-      <li><code>threshold</code>: Numeric threshold for high/low threshold detectors.</li>
-      <li><code>comparison</code>: Optional. Use <code>"less"</code> for low-side checks; default is greater-than.</li>
-      <li><code>min_consecutive</code>: Minimum consecutive samples required before reporting.</li>
-      <li><code>min_switches</code>: For zig-zag pattern detectors (minimum node dominance switches).</li>
-      <li><code>min_gap</code>: Minimum value gap required between compared entities.</li>
-      <li><code>high_threshold</code> / <code>low_threshold</code>: For imbalance detectors that require high-vs-low criteria.</li>
-      <li><code>include_attribute_equals</code>: Exact attribute labels allowed (for example <code>"Vcpu: % CoStop"</code>).</li>
-      <li><code>include_object_equals</code>: Exact esxtop object names allowed (for example <code>"Physical Disk Adapter"</code>).</li>
-      <li><code>exclude_instance_contains</code>: Exclude instances containing any listed substring.</li>
-      <li><code>exclude_instance_regex</code>: Exclude instances matching any listed regex.</li>
-    </ul>
-
-    <h2>8.4 Supported detector types</h2>
-    <ul>
-      <li><code>high_ready</code>: sustained high ready time.</li>
-      <li><code>high_costop</code>: sustained high co-stop time.</li>
-      <li><code>exclusive_affinity</code>: detects entities with exclusive affinity enabled.</li>
-      <li><code>zigzag_switch</code>: frequent dominance switching across matched signals.</li>
-      <li><code>low_numa_local</code>: sustained low local NUMA memory.</li>
-      <li><code>memory_overcommit_high</code>: sustained high memory overcommit.</li>
-      <li><code>dominance_imbalance</code>: one matched signal persistently high while another remains low.</li>
-      <li><code>network_outbound_drop_high</code>: sustained high outbound packet drops.</li>
-      <li><code>disk_adapter_failed_reads_high</code>: sustained adapter failed reads.</li>
-      <li><code>disk_adapter_driver_latency_high</code>: sustained high adapter driver latency.</li>
-    </ul>
+    <h2>8.2 Import and Export</h2>
+    <ol>
+      <li>Use <code>Export JSON</code> to back up or share templates.</li>
+      <li>Use <code>Import JSON</code> to load templates into another environment.</li>
+      <li>When importing, you can merge with current custom templates or replace them.</li>
+    </ol>
 
     <h2>9. Optional settings and help</h2>
     <ol>
