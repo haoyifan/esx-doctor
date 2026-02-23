@@ -17,6 +17,8 @@
     .tm-item-title { font-weight: 600; font-size: 13px; }
     .tm-item-meta { color: var(--muted); font-size: 11px; }
     .tm-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .tm-form-grid > div { display: flex; flex-direction: column; }
+    .tm-form-grid input, .tm-form-grid select { width: 100%; box-sizing: border-box; }
     .tm-full { grid-column: 1 / -1; }
     .tm-conditions { border: 1px solid var(--border); border-radius: 8px; padding: 8px; background: var(--list-bg); }
     .tm-cond-row { display: grid; grid-template-columns: 120px 130px 1fr auto; gap: 8px; margin-bottom: 8px; }
@@ -99,21 +101,18 @@
             <div class="controls tight">
               <button id="tmAddCondition" type="button" class="btn ghost">Add Condition</button>
             </div>
-            <div class="tm-small">Instance filters only. Use AND/OR to combine conditions.</div>
+            <div class="tm-small"></div>
           </div>
 
           <div id="tmThresholdParams" class="tm-full">
             <div class="tm-form-grid">
               <div>
-                <label class="sub-label" for="tmThreshold">Threshold</label>
+                <label class="sub-label" for="tmThreshold">Lower Bound</label>
                 <input id="tmThreshold" type="number" step="0.01" />
               </div>
               <div>
-                <label class="sub-label" for="tmComparison">Comparison</label>
-                <select id="tmComparison">
-                  <option value="greater">greater than</option>
-                  <option value="less">less than</option>
-                </select>
+                <label class="sub-label" for="tmUpperThreshold">Upper Bound (Optional)</label>
+                <input id="tmUpperThreshold" type="number" step="0.01" />
               </div>
               <div>
                 <label class="sub-label" for="tmMinConsecutive">Min Consecutive Samples</label>

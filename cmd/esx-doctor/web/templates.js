@@ -213,7 +213,7 @@ function clearForm() {
   $conditions.innerHTML = "";
   $conditions.appendChild(createConditionRow(defaultCondition()));
   $("tmThreshold").value = "5";
-  $("tmComparison").value = "greater";
+  $("tmUpperThreshold").value = "";
   $("tmMinConsecutive").value = "6";
   $("tmMinSwitches").value = "6";
   $("tmMinGap").value = "3";
@@ -252,7 +252,7 @@ function fillForm(t) {
   else conds.forEach((c) => $conditions.appendChild(createConditionRow(c)));
 
   $("tmThreshold").value = Number.isFinite(t.detector?.threshold) ? String(t.detector.threshold) : "";
-  $("tmComparison").value = (t.detector?.comparison || "greater").toLowerCase() === "less" ? "less" : "greater";
+  $("tmUpperThreshold").value = Number.isFinite(t.detector?.upper_threshold) ? String(t.detector.upper_threshold) : "";
   $("tmMinConsecutive").value = t.detector?.min_consecutive || 6;
   $("tmMinSwitches").value = t.detector?.min_switches || 6;
   $("tmMinGap").value = t.detector?.min_gap || 3;
@@ -288,7 +288,9 @@ function toTemplatePayload() {
   };
   if (type === "threshold_sustained") {
     detector.threshold = parseNum("tmThreshold");
-    detector.comparison = $("tmComparison").value || "greater";
+    const upper = parseNum("tmUpperThreshold");
+    if (Number.isFinite(upper) && upper > 0) detector.upper_threshold = upper;
+    detector.comparison = "greater";
     detector.min_consecutive = Math.max(1, parseInt($("tmMinConsecutive").value || "6", 10));
   } else if (type === "zigzag_switch" || type === "numa_zigzag") {
     detector.min_switches = Math.max(1, parseInt($("tmMinSwitches").value || "6", 10));

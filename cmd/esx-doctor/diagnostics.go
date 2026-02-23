@@ -31,6 +31,7 @@ type DetectorTemplate struct {
 	Type                    string         `json:"type"`
 	TargetAttribute         string         `json:"target_attribute,omitempty"`
 	Threshold               float64        `json:"threshold,omitempty"`
+	UpperThreshold          float64        `json:"upper_threshold,omitempty"`
 	Comparison              string         `json:"comparison,omitempty"`
 	MinConsecutive          int            `json:"min_consecutive,omitempty"`
 	MinSwitches             int            `json:"min_switches,omitempty"`
@@ -194,10 +195,12 @@ type thresholdProcessor struct {
 	template       DiagnosticTemplate
 	reportKey      string
 	attributeLabel string
-	compareLess    bool
 	indexes        []int
 	labels         []string
-	threshold      float64
+	lowerBound     float64
+	upperBound     float64
+	hasLowerBound  bool
+	hasUpperBound  bool
 	minConsecutive int
 	states         []thresholdEntityState
 }
@@ -212,16 +215,19 @@ func (p *thresholdProcessor) onRow(ts time.Time, record []string) {
 			p.reset(i, ts)
 			continue
 		}
-		matched := v > p.threshold
-		if p.compareLess {
-			matched = v < p.threshold
+		matched := true
+		if p.hasLowerBound && v < p.lowerBound {
+			matched = false
+		}
+		if p.hasUpperBound && v > p.upperBound {
+			matched = false
 		}
 		if matched {
 			s := &p.states[i]
 			if s.currLen == 0 {
 				s.currStart = ts
 				s.currPeak = v
-			} else if (!p.compareLess && v > s.currPeak) || (p.compareLess && v < s.currPeak) {
+			} else if v > s.currPeak {
 				s.currPeak = v
 			}
 			s.currLen++
@@ -253,11 +259,15 @@ func (p *thresholdProcessor) finalize() []DiagnosticFinding {
 		if s.bestLen < p.minConsecutive {
 			continue
 		}
-		compWord := "above"
-		if p.compareLess {
-			compWord = "below"
+		rangeText := "within configured bounds"
+		if p.hasLowerBound && p.hasUpperBound {
+			rangeText = fmt.Sprintf("between %.2f and %.2f", p.lowerBound, p.upperBound)
+		} else if p.hasLowerBound {
+			rangeText = fmt.Sprintf("above %.2f", p.lowerBound)
+		} else if p.hasUpperBound {
+			rangeText = fmt.Sprintf("below %.2f", p.upperBound)
 		}
-		summary := fmt.Sprintf("Sustained threshold breach: peak %.2f stayed %s threshold %.2f for %d consecutive samples.", s.bestPeak, compWord, p.threshold, s.bestLen)
+		summary := fmt.Sprintf("Sustained threshold breach: values stayed %s for %d consecutive samples (peak %.2f).", rangeText, s.bestLen, s.bestPeak)
 		f := DiagnosticFinding{
 			TemplateID:     p.template.ID,
 			TemplateName:   p.template.Name,
@@ -705,8 +715,11 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 			var labels []string
 			attribute := ""
 			reportKey := "cpu"
+			lowerBound := 0.0
+			upperBound := 0.0
+			hasLowerBound := false
+			hasUpperBound := false
 			threshold := t.Detector.Threshold
-			compareLess := strings.EqualFold(strings.TrimSpace(t.Detector.Comparison), "less")
 			minConsecutive := t.Detector.MinConsecutive
 			if minConsecutive <= 0 {
 				minConsecutive = 6
@@ -721,7 +734,6 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 					threshold = 20
 				case "low_numa_local":
 					threshold = 85
-					compareLess = true
 				case "memory_overcommit_high":
 					threshold = 100
 				case "network_outbound_drop_high":
@@ -731,6 +743,32 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 				case "disk_adapter_driver_latency_high":
 					threshold = 30
 				}
+			}
+			upperThreshold := t.Detector.UpperThreshold
+			comparison := strings.TrimSpace(strings.ToLower(t.Detector.Comparison))
+			switch comparison {
+			case "less":
+				if threshold > 0 {
+					upperBound = threshold
+					hasUpperBound = true
+				}
+			case "greater", "":
+				if threshold > 0 {
+					lowerBound = threshold
+					hasLowerBound = true
+				}
+			default:
+				if threshold > 0 {
+					lowerBound = threshold
+					hasLowerBound = true
+				}
+			}
+			if upperThreshold > 0 {
+				upperBound = upperThreshold
+				hasUpperBound = true
+			}
+			if hasLowerBound && hasUpperBound && upperBound < lowerBound {
+				lowerBound, upperBound = upperBound, lowerBound
 			}
 
 			for _, c := range cols {
@@ -800,10 +838,12 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 					template:       t,
 					reportKey:      reportKey,
 					attributeLabel: attribute,
-					compareLess:    compareLess,
 					indexes:        idxs,
 					labels:         labels,
-					threshold:      threshold,
+					lowerBound:     lowerBound,
+					upperBound:     upperBound,
+					hasLowerBound:  hasLowerBound,
+					hasUpperBound:  hasUpperBound,
 					minConsecutive: minConsecutive,
 					states:         make([]thresholdEntityState, len(idxs)),
 				})
