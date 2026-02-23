@@ -6,7 +6,7 @@
   "severity": "medium",
   "detector": {
     "type": "exclusive_affinity",
-    "target_attribute": "Vcpu: Exclusive Affinity",
+    "target_attribute": "Group Cpu: Exclusive Affinity",
     "filter": {"logic": "and", "conditions": []}
   }
 }
