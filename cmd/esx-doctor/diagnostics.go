@@ -435,12 +435,24 @@ func (p *numaZigzagProcessor) finalize() []DiagnosticFinding {
 	if p.switches < p.minSwitches || p.observations < p.minSwitches+1 {
 		return nil
 	}
+	instances := make([]string, 0, len(p.labels))
+	for _, l := range p.labels {
+		v := strings.TrimSpace(l)
+		if v == "" {
+			continue
+		}
+		instances = append(instances, v)
+		if len(instances) >= 8 {
+			break
+		}
+	}
 	return []DiagnosticFinding{{
 		TemplateID:   p.template.ID,
 		TemplateName: p.template.Name,
 		Title:        p.template.Name,
 		Severity:     p.template.Severity,
 		ReportKey:    "numa",
+		Instances:    instances,
 		Summary:      fmt.Sprintf("Detected %d dominance switches across NUMA nodes (%d analyzed samples).", p.switches, p.observations),
 		Start:        p.firstSwitch.UnixMilli(),
 		End:          p.lastSwitch.UnixMilli(),
