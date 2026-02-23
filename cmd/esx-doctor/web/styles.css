@@ -251,6 +251,9 @@ body.sidebar-collapsed .sidebar {
 }
 .optional-toggle {
   list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   cursor: pointer;
   font-size: 12px;
   font-weight: 600;
@@ -342,14 +345,17 @@ body.sidebar-collapsed .sidebar {
   padding: 6px;
 }
 .diag-summary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
+  justify-content: flex-start;
+  width: auto;
 }
 .diag-summary .btn {
+  display: none;
+  margin-left: auto;
   width: auto;
   padding: 6px 10px;
+}
+.optional-panel[open] .diag-summary .btn {
+  display: inline-flex;
 }
 .diag-finding {
   border: 1px solid var(--border);
