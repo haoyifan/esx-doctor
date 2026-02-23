@@ -1,0 +1,17 @@
+{
+   "id": "custom.low.aperf.mperf.ratio",
+   "name": "Low aperf/mperf ratio",
+   "description": "Detect CPUs that have low aperf/mperf ratio",
+   "enabled": true,
+   "severity": "critical",
+   "detector": {
+     "type": "threshold_sustained",
+     "target_attribute": "PCPU Power State: % of aperf/mperf",
+     "upper_threshold": 100,
+     "comparison": "greater",
+     "min_consecutive": 6,
+     "filter": {
+       "logic": "and"
+     }
+   }
+ }
