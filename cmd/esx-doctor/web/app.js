@@ -690,11 +690,21 @@ async function jumpToFinding(finding) {
   const attr = currentAttribute();
   if (attr && Array.isArray(finding.instances) && finding.instances.length > 0) {
     state.selected.clear();
-    const targets = finding.instances.map((x) => String(x).toLowerCase());
+    const targetTokens = new Set();
+    finding.instances.forEach((x) => {
+      const raw = String(x || "").trim().toLowerCase();
+      if (!raw) return;
+      targetTokens.add(raw);
+      const numa = raw.match(/^numa node\s+(.+)$/i);
+      if (numa && numa[1]) targetTokens.add(numa[1].trim().toLowerCase());
+    });
+    const targets = Array.from(targetTokens.values());
     attr.items.forEach((item) => {
-      const raw = (item.instance || "").toLowerCase();
-      const compact = compactInstanceName(item).toLowerCase();
-      if (targets.some((t) => raw.includes(t) || compact.includes(t))) state.selected.add(item.idx);
+      const raw = (item.instance || "").trim().toLowerCase();
+      const compact = compactInstanceName(item).trim().toLowerCase();
+      if (targets.some((t) => raw === t || compact === t || raw.includes(t) || compact.includes(t))) {
+        state.selected.add(item.idx);
+      }
     });
     if (state.selected.size === 0) {
       attr.items.slice(0, 1).forEach((item) => state.selected.add(item.idx));
