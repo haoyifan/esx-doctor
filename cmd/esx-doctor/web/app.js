@@ -1942,7 +1942,9 @@ document.getElementById("loadSeries").addEventListener("click", () => loadSeries
 document.getElementById("screenshot").addEventListener("click", () => downloadScreenshot());
 if ($runDiagnostics) $runDiagnostics.addEventListener("click", () => runDiagnostics());
 if ($openTemplateManager) {
-  $openTemplateManager.addEventListener("click", () => {
+  $openTemplateManager.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     window.open(`/templates?sid=${encodeURIComponent(clientSessionID)}`, "_blank", "noopener,noreferrer");
   });
 }

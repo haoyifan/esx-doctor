@@ -341,13 +341,13 @@ body.sidebar-collapsed .sidebar {
   background: var(--list-bg);
   padding: 6px;
 }
-.diag-head {
-  margin-top: 8px;
+.diag-summary {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  width: 100%;
 }
-.diag-head .btn {
+.diag-summary .btn {
   width: auto;
   padding: 6px 10px;
 }
