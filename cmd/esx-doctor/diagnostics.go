@@ -784,7 +784,7 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 					states:         make([]thresholdEntityState, len(idxs)),
 				})
 			}
-		case "numa_zigzag":
+		case "numa_zigzag", "zigzag_switch":
 			var idxs []int
 			var labels []string
 			for _, c := range cols {
@@ -835,7 +835,7 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 					lastSeen:  make([]time.Time, len(idxs)),
 				})
 			}
-		case "numa_imbalance":
+		case "numa_imbalance", "dominance_imbalance":
 			var idxs []int
 			var labels []string
 			for _, c := range cols {

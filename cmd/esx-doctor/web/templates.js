@@ -114,7 +114,16 @@ function renderTemplateList() {
     title.textContent = `${t.name} [${t.severity || "medium"}]`;
     const meta = document.createElement("div");
     meta.className = "tm-item-meta";
-    const kind = t.detector?.type || "unknown";
+    const rawKind = t.detector?.type || "unknown";
+    const kindMap = {
+      threshold_sustained: "sustained-threshold",
+      zigzag_switch: "zigzag-switch",
+      numa_zigzag: "zigzag-switch",
+      dominance_imbalance: "dominance-imbalance",
+      numa_imbalance: "dominance-imbalance",
+      exclusive_affinity: "boolean-active-flag",
+    };
+    const kind = kindMap[rawKind] || rawKind;
     const builtin = !String(t.id || "").startsWith("custom.") ? "built-in" : "custom";
     meta.textContent = `${kind} | ${builtin} | ${t.enabled === false ? "disabled" : "enabled"}`;
     div.appendChild(title);
@@ -212,8 +221,8 @@ function getDetectorType() {
 function refreshTypeParams() {
   const kind = getDetectorType();
   $("tmThresholdParams").style.display = kind === "threshold_sustained" ? "block" : "none";
-  $("tmZigzagParams").style.display = kind === "numa_zigzag" ? "block" : "none";
-  $("tmImbalanceParams").style.display = kind === "numa_imbalance" ? "block" : "none";
+  $("tmZigzagParams").style.display = (kind === "zigzag_switch" || kind === "numa_zigzag") ? "block" : "none";
+  $("tmImbalanceParams").style.display = (kind === "dominance_imbalance" || kind === "numa_imbalance") ? "block" : "none";
 }
 
 function clearForm() {
@@ -245,7 +254,10 @@ function fillForm(t) {
   $desc.value = t.description || "";
   $severity.value = (t.severity || "medium").toLowerCase();
   $enabled.value = t.enabled === false ? "false" : "true";
-  $type.value = t.detector?.type || "threshold_sustained";
+  const rawType = t.detector?.type || "threshold_sustained";
+  if (rawType === "numa_zigzag") $type.value = "zigzag_switch";
+  else if (rawType === "numa_imbalance") $type.value = "dominance_imbalance";
+  else $type.value = rawType;
   const logic = (t.detector?.filter?.logic || "and").toLowerCase();
   $filterLogic.value = logic === "or" ? "or" : "and";
   $conditions.innerHTML = "";
@@ -291,10 +303,10 @@ function toTemplatePayload() {
     detector.threshold = parseNum("tmThreshold");
     detector.comparison = $("tmComparison").value || "greater";
     detector.min_consecutive = Math.max(1, parseInt($("tmMinConsecutive").value || "6", 10));
-  } else if (type === "numa_zigzag") {
+  } else if (type === "zigzag_switch" || type === "numa_zigzag") {
     detector.min_switches = Math.max(1, parseInt($("tmMinSwitches").value || "6", 10));
     detector.min_gap = parseNum("tmMinGap");
-  } else if (type === "numa_imbalance") {
+  } else if (type === "dominance_imbalance" || type === "numa_imbalance") {
     detector.high_threshold = parseNum("tmHighThreshold");
     detector.low_threshold = parseNum("tmLowThreshold");
     detector.min_gap = parseNum("tmImbalanceGap");
