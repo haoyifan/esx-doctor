@@ -78,6 +78,10 @@
 
       <details class="section optional-panel">
         <summary class="optional-toggle">Diagnostics</summary>
+        <div class="diag-head">
+          <div></div>
+          <button id="openTemplateManager" class="btn ghost" type="button">Manage Templates</button>
+        </div>
         <div class="label-row">
           <div class="sub-label">Templates</div>
           <span class="help-tip" data-help="Run selected templates to surface likely problems and jump directly to related reports.">?</span>
@@ -85,7 +89,6 @@
         <div id="diagTemplates" class="diag-templates"></div>
         <div class="controls">
           <button id="runDiagnostics" class="btn primary">Run Diagnostics</button>
-          <button id="openTemplateManager" class="btn ghost" type="button">Manage Templates</button>
         </div>
         <div id="diagRunMeta" class="muted"></div>
         <div id="diagFindings" class="diag-findings"></div>
