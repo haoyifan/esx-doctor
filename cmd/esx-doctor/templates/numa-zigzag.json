@@ -1,19 +1,14 @@
 {
   "id": "numa.aggressive_migration.v1",
   "name": "Aggressive NUMA Migration Pattern",
-  "description": "Detect zig-zag dominance between NUMA node processor load signals.",
+  "description": "Detect zig-zag dominance switching across matched instances.",
   "enabled": true,
   "severity": "medium",
   "detector": {
     "type": "zigzag_switch",
+    "target_attribute": "Numa Node: % Processor Time",
     "min_switches": 6,
     "min_gap": 3.0,
-    "filter": {
-      "logic": "and",
-      "conditions": [
-        {"field": "object", "op": "eq", "value": "Numa Node"},
-        {"field": "counter", "op": "eq", "value": "% Processor Time"}
-      ]
-    }
+    "filter": {"logic": "and", "conditions": []}
   }
 }

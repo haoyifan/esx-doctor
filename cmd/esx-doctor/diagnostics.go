@@ -29,6 +29,7 @@ type DiagnosticTemplate struct {
 
 type DetectorTemplate struct {
 	Type                    string         `json:"type"`
+	TargetAttribute         string         `json:"target_attribute,omitempty"`
 	Threshold               float64        `json:"threshold,omitempty"`
 	Comparison              string         `json:"comparison,omitempty"`
 	MinConsecutive          int            `json:"min_consecutive,omitempty"`
@@ -586,6 +587,14 @@ func matchesIncludedAttribute(label string, includes []string) bool {
 	return false
 }
 
+func matchesTargetAttribute(label, target string) bool {
+	target = strings.TrimSpace(target)
+	if target == "" {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(label), target)
+}
+
 func matchesIncludedObject(object string, includes []string) bool {
 	if len(includes) == 0 {
 		return true
@@ -759,6 +768,9 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 				if !match {
 					continue
 				}
+				if !matchesTargetAttribute(c.AttributeLabel, t.Detector.TargetAttribute) {
+					continue
+				}
 				if !matchesTemplateFilter(c, t.Detector.Filter) {
 					continue
 				}
@@ -800,6 +812,9 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 			var idxs []int
 			var labels []string
 			for _, c := range cols {
+				if !matchesTargetAttribute(c.AttributeLabel, t.Detector.TargetAttribute) {
+					continue
+				}
 				if len(t.Detector.Filter.Conditions) > 0 {
 					if !matchesTemplateFilter(c, t.Detector.Filter) {
 						continue
@@ -832,6 +847,12 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 			var idxs []int
 			var labels []string
 			for _, c := range cols {
+				if !matchesTargetAttribute(c.AttributeLabel, t.Detector.TargetAttribute) {
+					continue
+				}
+				if !matchesTemplateFilter(c, t.Detector.Filter) {
+					continue
+				}
 				if containsAnyFold(c.AttributeLabel, "exclusive affinity") {
 					idxs = append(idxs, c.Idx)
 					labels = append(labels, c.Instance)
@@ -851,6 +872,9 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 			var idxs []int
 			var labels []string
 			for _, c := range cols {
+				if !matchesTargetAttribute(c.AttributeLabel, t.Detector.TargetAttribute) {
+					continue
+				}
 				if len(t.Detector.Filter.Conditions) > 0 {
 					if !matchesTemplateFilter(c, t.Detector.Filter) {
 						continue
@@ -878,10 +902,16 @@ func buildProcessors(templates []DiagnosticTemplate, cols []parsedColumn) []rowP
 				if minConsecutive <= 0 {
 					minConsecutive = 6
 				}
+				attrLabel := strings.TrimSpace(t.Detector.TargetAttribute)
+				reportKey := inferReportKeyFromAttribute(attrLabel)
+				if attrLabel == "" {
+					attrLabel = "Matched Attribute"
+					reportKey = "other"
+				}
 				processors = append(processors, &rangeImbalanceProcessor{
 					template:       t,
-					reportKey:      "numa",
-					attributeLabel: "Numa Node: % Processor Time",
+					reportKey:      reportKey,
+					attributeLabel: attrLabel,
 					indexes:        idxs,
 					labels:         labels,
 					highThreshold:  high,

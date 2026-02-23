@@ -6,14 +6,10 @@
   "severity": "high",
   "detector": {
     "type": "threshold_sustained",
+    "target_attribute": "Memory: Memory Overcommit (1 Minute Avg)",
     "comparison": "greater",
     "threshold": 100.0,
     "min_consecutive": 6,
-    "filter": {
-      "logic": "and",
-      "conditions": [
-        {"field": "attribute", "op": "eq", "value": "Memory: Memory Overcommit (1 Minute Avg)"}
-      ]
-    }
+    "filter": {"logic": "and", "conditions": []}
   }
 }

@@ -57,6 +57,7 @@ const $name = $("tmName");
 const $desc = $("tmDesc");
 const $severity = $("tmSeverity");
 const $type = $("tmType");
+const $attribute = $("tmAttribute");
 const $enabled = $("tmEnabled");
 const $filterLogic = $("tmFilterLogic");
 const $conditions = $("tmConditions");
@@ -85,18 +86,34 @@ async function loadMetadataOptions() {
     const data = await res.json();
     const cols = Array.isArray(data.columns) ? data.columns.slice(1) : [];
     const attrs = new Set();
-    const objs = new Set();
     cols.forEach((c) => {
       const p = parsePDHColumn(c);
       attrs.add(p.attributeLabel);
-      objs.add(p.object);
     });
     state.attributeOptions = Array.from(attrs).sort((a, b) => a.localeCompare(b));
-    state.objectOptions = Array.from(objs).sort((a, b) => a.localeCompare(b));
+    state.objectOptions = [];
   } catch (_err) {
     state.attributeOptions = [];
     state.objectOptions = [];
   }
+  renderAttributeOptions();
+}
+
+function renderAttributeOptions(selected = "") {
+  if (!$attribute) return;
+  const current = selected || $attribute.value || "";
+  $attribute.innerHTML = "";
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "-- select attribute --";
+  $attribute.appendChild(empty);
+  state.attributeOptions.forEach((a) => {
+    const opt = document.createElement("option");
+    opt.value = a;
+    opt.textContent = a;
+    $attribute.appendChild(opt);
+  });
+  $attribute.value = state.attributeOptions.includes(current) ? current : "";
 }
 
 function renderTemplateList() {
@@ -139,66 +156,26 @@ function renderTemplateList() {
 }
 
 function defaultCondition() {
-  return { field: "attribute", op: "eq", value: "" };
+  return { field: "instance", op: "contains", value: "" };
 }
 
 function createConditionRow(cond = defaultCondition()) {
   const row = document.createElement("div");
   row.className = "tm-cond-row";
 
-  const field = document.createElement("select");
-  ["object", "attribute", "instance", "counter"].forEach((v) => {
-    const o = document.createElement("option");
-    o.value = v;
-    o.textContent = v;
-    field.appendChild(o);
-  });
-  field.value = cond.field || "attribute";
-
   const op = document.createElement("select");
-  [["eq", "equals"], ["neq", "not equals"], ["contains", "contains"], ["not_contains", "not contains"], ["regex", "regex"], ["not_regex", "not regex"]].forEach(([v, l]) => {
+  [["contains", "contains"], ["not_contains", "not contains"], ["eq", "equals"], ["neq", "not equals"], ["regex", "regex"], ["not_regex", "not regex"]].forEach(([v, l]) => {
     const o = document.createElement("option");
     o.value = v;
     o.textContent = l;
     op.appendChild(o);
   });
-  op.value = cond.op || "eq";
+  op.value = cond.op || "contains";
 
-  let valueInput = document.createElement("input");
+  const valueInput = document.createElement("input");
   valueInput.type = "text";
+  valueInput.placeholder = "Instance match text or regex";
   valueInput.value = cond.value || "";
-
-  function rebuildValueInput() {
-    const prev = valueInput.value;
-    const isAttribute = field.value === "attribute";
-    const isObject = field.value === "object";
-    const replacement = document.createElement("select");
-    if (isAttribute || isObject) {
-      const options = isAttribute ? state.attributeOptions : state.objectOptions;
-      const empty = document.createElement("option");
-      empty.value = "";
-      empty.textContent = "--select--";
-      replacement.appendChild(empty);
-      options.forEach((x) => {
-        const o = document.createElement("option");
-        o.value = x;
-        o.textContent = x;
-        replacement.appendChild(o);
-      });
-      replacement.value = options.includes(prev) ? prev : "";
-      valueInput.replaceWith(replacement);
-      valueInput = replacement;
-      return;
-    }
-    const inp = document.createElement("input");
-    inp.type = "text";
-    inp.value = prev;
-    valueInput.replaceWith(inp);
-    valueInput = inp;
-  }
-
-  field.addEventListener("change", rebuildValueInput);
-  rebuildValueInput();
 
   const remove = document.createElement("button");
   remove.className = "btn ghost";
@@ -206,11 +183,10 @@ function createConditionRow(cond = defaultCondition()) {
   remove.textContent = "Remove";
   remove.addEventListener("click", () => row.remove());
 
-  row.appendChild(field);
   row.appendChild(op);
   row.appendChild(valueInput);
   row.appendChild(remove);
-  row._get = () => ({ field: field.value, op: op.value, value: (valueInput.value || "").trim() });
+  row._get = () => ({ field: "instance", op: op.value, value: (valueInput.value || "").trim() });
   return row;
 }
 
@@ -232,6 +208,7 @@ function clearForm() {
   $severity.value = "medium";
   $enabled.value = "true";
   $type.value = "threshold_sustained";
+  renderAttributeOptions("");
   $filterLogic.value = "and";
   $conditions.innerHTML = "";
   $conditions.appendChild(createConditionRow(defaultCondition()));
@@ -258,10 +235,19 @@ function fillForm(t) {
   if (rawType === "numa_zigzag") $type.value = "zigzag_switch";
   else if (rawType === "numa_imbalance") $type.value = "dominance_imbalance";
   else $type.value = rawType;
+  const explicitAttr = (t.detector?.target_attribute || "").trim();
+  let selectedAttr = explicitAttr;
+  if (!selectedAttr) {
+    const firstAttrCond = (Array.isArray(t.detector?.filter?.conditions) ? t.detector.filter.conditions : [])
+      .find((c) => String(c.field || "").toLowerCase() === "attribute" && String(c.op || "").toLowerCase() === "eq");
+    selectedAttr = firstAttrCond?.value || "";
+  }
+  renderAttributeOptions(selectedAttr);
   const logic = (t.detector?.filter?.logic || "and").toLowerCase();
   $filterLogic.value = logic === "or" ? "or" : "and";
   $conditions.innerHTML = "";
-  const conds = Array.isArray(t.detector?.filter?.conditions) ? t.detector.filter.conditions : [];
+  const conds = (Array.isArray(t.detector?.filter?.conditions) ? t.detector.filter.conditions : [])
+    .filter((c) => String(c.field || "").toLowerCase() === "instance");
   if (!conds.length) $conditions.appendChild(createConditionRow(defaultCondition()));
   else conds.forEach((c) => $conditions.appendChild(createConditionRow(c)));
 
@@ -282,7 +268,7 @@ function collectConditions() {
   const rows = Array.from($conditions.querySelectorAll(".tm-cond-row"));
   return rows
     .map((r) => (typeof r._get === "function" ? r._get() : null))
-    .filter((x) => x && x.field && x.op && x.value);
+    .filter((x) => x && x.op && x.value);
 }
 
 function parseNum(id) {
@@ -294,6 +280,7 @@ function toTemplatePayload() {
   const type = getDetectorType();
   const detector = {
     type,
+    target_attribute: ($attribute && $attribute.value) ? $attribute.value.trim() : "",
     filter: {
       logic: $filterLogic.value || "and",
       conditions: collectConditions(),
@@ -326,6 +313,10 @@ async function saveTemplate() {
   const payload = toTemplatePayload();
   if (!payload.name) {
     setStatus("Template name is required.");
+    return;
+  }
+  if (!payload.detector.target_attribute) {
+    setStatus("Attribute is required.");
     return;
   }
   try {

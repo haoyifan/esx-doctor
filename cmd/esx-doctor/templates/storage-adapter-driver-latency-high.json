@@ -6,15 +6,10 @@
   "severity": "high",
   "detector": {
     "type": "threshold_sustained",
+    "target_attribute": "Physical Disk Adapter: Average Driver MilliSec/Command",
     "comparison": "greater",
     "threshold": 25.0,
     "min_consecutive": 6,
-    "filter": {
-      "logic": "and",
-      "conditions": [
-        {"field": "object", "op": "eq", "value": "Physical Disk Adapter"},
-        {"field": "attribute", "op": "eq", "value": "Physical Disk Adapter: Average Driver MilliSec/Command"}
-      ]
-    }
+    "filter": {"logic": "and", "conditions": []}
   }
 }

@@ -6,15 +6,10 @@
   "severity": "critical",
   "detector": {
     "type": "threshold_sustained",
+    "target_attribute": "Physical Disk Adapter: Failed Reads/sec",
     "comparison": "greater",
     "threshold": 2.0,
     "min_consecutive": 4,
-    "filter": {
-      "logic": "and",
-      "conditions": [
-        {"field": "object", "op": "eq", "value": "Physical Disk Adapter"},
-        {"field": "attribute", "op": "eq", "value": "Physical Disk Adapter: Failed Reads/sec"}
-      ]
-    }
+    "filter": {"logic": "and", "conditions": []}
   }
 }

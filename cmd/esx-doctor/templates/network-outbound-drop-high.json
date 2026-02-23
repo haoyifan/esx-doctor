@@ -6,14 +6,10 @@
   "severity": "high",
   "detector": {
     "type": "threshold_sustained",
+    "target_attribute": "Network Port: % Outbound Packets Dropped",
     "comparison": "greater",
     "threshold": 1.0,
     "min_consecutive": 6,
-    "filter": {
-      "logic": "and",
-      "conditions": [
-        {"field": "attribute", "op": "eq", "value": "Network Port: % Outbound Packets Dropped"}
-      ]
-    }
+    "filter": {"logic": "and", "conditions": []}
   }
 }

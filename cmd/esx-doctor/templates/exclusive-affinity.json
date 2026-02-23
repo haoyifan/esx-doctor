@@ -5,6 +5,8 @@
   "enabled": true,
   "severity": "medium",
   "detector": {
-    "type": "exclusive_affinity"
+    "type": "exclusive_affinity",
+    "target_attribute": "Vcpu: Exclusive Affinity",
+    "filter": {"logic": "and", "conditions": []}
   }
 }

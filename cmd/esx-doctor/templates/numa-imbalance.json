@@ -1,21 +1,16 @@
 {
   "id": "numa.processor_imbalance.v1",
   "name": "NUMA Processor Imbalance",
-  "description": "Detect sustained imbalance where one NUMA node is very busy while another is idle.",
+  "description": "Detect sustained imbalance where one instance is very busy while another is idle.",
   "enabled": true,
   "severity": "high",
   "detector": {
     "type": "dominance_imbalance",
+    "target_attribute": "Numa Node: % Processor Time",
     "high_threshold": 80.0,
     "low_threshold": 20.0,
     "min_gap": 45.0,
     "min_consecutive": 6,
-    "filter": {
-      "logic": "and",
-      "conditions": [
-        {"field": "object", "op": "eq", "value": "Numa Node"},
-        {"field": "counter", "op": "eq", "value": "% Processor Time"}
-      ]
-    }
+    "filter": {"logic": "and", "conditions": []}
   }
 }

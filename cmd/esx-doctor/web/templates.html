@@ -76,6 +76,10 @@
             </select>
           </div>
           <div>
+            <label class="sub-label" for="tmAttribute">Attribute</label>
+            <select id="tmAttribute"></select>
+          </div>
+          <div>
             <label class="sub-label" for="tmEnabled">Enabled by default</label>
             <select id="tmEnabled">
               <option value="true">true</option>
@@ -95,7 +99,7 @@
             <div class="controls tight">
               <button id="tmAddCondition" type="button" class="btn ghost">Add Condition</button>
             </div>
-            <div class="tm-small">Use conditions to scope object/attribute/instance/counter before pattern detection.</div>
+            <div class="tm-small">Instance filters only. Use AND/OR to combine conditions.</div>
           </div>
 
           <div id="tmThresholdParams" class="tm-full">

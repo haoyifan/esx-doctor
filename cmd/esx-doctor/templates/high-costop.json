@@ -6,13 +6,13 @@
   "severity": "high",
   "detector": {
     "type": "threshold_sustained",
+    "target_attribute": "Vcpu: % CoStop",
     "threshold": 3.0,
     "comparison": "greater",
     "min_consecutive": 6,
     "filter": {
       "logic": "and",
       "conditions": [
-        {"field": "attribute", "op": "eq", "value": "Vcpu: % CoStop"},
         {"field": "instance", "op": "not_regex", "value": "\\bidle\\d+\\b"}
       ]
     }

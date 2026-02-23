@@ -6,13 +6,13 @@
   "severity": "high",
   "detector": {
     "type": "threshold_sustained",
+    "target_attribute": "Group Memory: Numa % Local",
     "comparison": "less",
     "threshold": 85.0,
     "min_consecutive": 8,
     "filter": {
       "logic": "and",
       "conditions": [
-        {"field": "attribute", "op": "eq", "value": "Group Memory: Numa % Local"},
         {"field": "instance", "op": "not_regex", "value": "\\.[0-9]+$"}
       ]
     }
