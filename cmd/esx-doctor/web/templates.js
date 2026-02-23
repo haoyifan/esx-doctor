@@ -21,7 +21,17 @@ function getOrCreateSessionID() {
     return `sid-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 }
-const clientSessionID = getOrCreateSessionID();
+function sessionIDFromURL() {
+  try {
+    const url = new URL(window.location.href);
+    const sid = (url.searchParams.get("sid") || "").trim();
+    return sid || "";
+  } catch (_err) {
+    return "";
+  }
+}
+
+const clientSessionID = sessionIDFromURL() || getOrCreateSessionID();
 let templateSyncChannel = null;
 
 try {

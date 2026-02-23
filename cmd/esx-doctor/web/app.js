@@ -1943,7 +1943,7 @@ document.getElementById("screenshot").addEventListener("click", () => downloadSc
 if ($runDiagnostics) $runDiagnostics.addEventListener("click", () => runDiagnostics());
 if ($openTemplateManager) {
   $openTemplateManager.addEventListener("click", () => {
-    window.open("/templates", "_blank", "noopener,noreferrer");
+    window.open(`/templates?sid=${encodeURIComponent(clientSessionID)}`, "_blank", "noopener,noreferrer");
   });
 }
 $zoomPanWindow.addEventListener("mousedown", (e) => {
